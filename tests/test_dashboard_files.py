@@ -109,3 +109,76 @@ def test_readme_numbers_match_committed_reports():
     ev = _json.loads((DASH.parent / "reports" / "evaluation.json").read_text())
     assert "{}/{}".format(ev["scenarios_fully_detected"], ev["scenarios_total"]) in readme
     assert "{}/{}".format(ev["expected_alerts_detected"], ev["expected_alerts"]) in readme
+
+
+def _guide_html():
+    html = (DASH / "index.html").read_text()
+    start = html.index('id="guide"')
+    return html[start:html.index("</div>\n\n<script", start)]
+
+
+def test_how_to_use_guide_has_the_required_parts():
+    html = (DASH / "index.html").read_text()
+    guide = _guide_html()
+    assert 'id="guide-open"' in html and "how to use this" in html           # visible entry in the top bar
+    assert 'role="dialog"' in guide and 'aria-modal="true"' in guide and 'aria-labelledby="guide-title"' in guide
+    for heading in ("What this is", "Try this in 60 seconds", "Words you will see", "What this shows about my skills"):
+        assert heading in guide, heading
+    assert guide.count("<li>") == 6                                           # six numbered steps
+    for term in ("Brute force", "Password spraying", "SQL injection", "MITRE ATT&amp;CK", "Incident", "Severity", "Event tail"):
+        assert "<dt>" + term in guide, term
+
+
+def test_guide_steps_name_things_that_exist_in_the_ui_and_data():
+    """Every row, button and ID the walkthrough names must exist, so the guide cannot drift from the app."""
+    guide = _guide_html()
+    html = (DASH / "index.html").read_text()
+    js = (DASH / "app.js").read_text()
+    data = json.loads((DASH / "data" / "alerts.json").read_text())
+    titles = [a["title"] for a in data["alerts"]]
+    assert "SQL injection probes" in guide and "SQL injection probes" in titles
+    sqli = [a for a in data["alerts"] if a["title"] == "SQL injection probes"][0]
+    assert sqli["rule_id"] == "WEB-002" and "WEB-002" in guide
+    assert sqli["incident_id"] == "INC-03" and "INC-03" in guide
+    inc = [i for i in data["incidents"] if i["id"] == "INC-03"][0]
+    assert len(inc["alert_ids"]) == 3
+    assert len([i for i in data["incidents"] if i["id"] == "INC-02"][0]["alert_ids"]) == 9
+    assert "INC-02" in guide and "helpdesk_tmp" in guide and any("helpdesk_tmp" in t for t in titles)
+    assert any(t == "Encoded PowerShell command" for t in titles) and any(t.startswith("Password spraying") for t in titles)
+    assert any(m["id"] == "T1110.003" for m in data["summary"]["mitre"]) and "T1110.003" in guide
+    for label in ('Show only this incident', 'Copy as ticket note', 'Recommended response', 'Evidence (raw log lines)', 'What happened'):
+        assert label in js, label
+    for needle in ('id="f-reset"', 'id="tail-toggle"', 'data-sort="time"', 'First seen', "pause"):
+        assert needle in html, needle
+    assert "6 of 30" in guide and len([a for a in data["alerts"] if a["severity"] == "critical"]) == 6
+
+
+def test_start_here_callout_is_dismissible_and_remembered():
+    html = (DASH / "index.html").read_text()
+    js = (DASH / "app.js").read_text()
+    assert 'id="start-here"' in html and "hidden" in html[html.index('id="start-here"'):html.index('id="start-here"') + 120]
+    assert 'id="start-dismiss"' in html and 'id="start-open"' in html
+    assert "localStorage" in js and "log-analyzer-guide-dismissed" in js
+    assert "try {" in js[js.index("function storeGet"):js.index("function storeGet") + 200]   # storage can throw in private mode
+    assert 'e.key === "Escape"' in js and "trapGuideTab" in js
+
+
+def test_guide_works_on_phones_and_has_a_visible_focus_style():
+    css = (DASH / "style.css").read_text()
+    assert ".guide-box" in css and "overflow: auto" in css and "dl.g-gloss { grid-template-columns: 1fr; }" in css
+    assert ":focus-visible" in css and ".win-guide" in css
+
+
+def test_guide_copy_is_plain_and_free_of_buzzwords():
+    guide = _guide_html().lower()
+    for banned in ("leverage", "robust", "comprehensive", "seamless", "cutting-edge", "passionate", "synergy", "vibe", "\u2014"):
+        assert banned not in guide, banned
+    assert "synthetic" in guide
+
+
+def test_readme_has_how_to_use_the_demo_section_matching_the_guide():
+    readme = (DASH.parent / "README.md").read_text()
+    assert "## How to use the demo" in readme
+    section = readme[readme.index("## How to use the demo"):]
+    for needle in ("SQL injection probes", "INC-03", "INC-02", "T1110.003", "Show only this incident"):
+        assert needle in section, needle

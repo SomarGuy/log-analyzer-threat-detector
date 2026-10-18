@@ -20,6 +20,7 @@
     <a href="#sec-mitre" class="win">3:mitre</a>
     <a href="#sec-why" class="win">4:why</a>
   </nav>
+  <button type="button" id="guide-open" class="win-guide" aria-haspopup="dialog" aria-controls="guide" title="A 60-second walkthrough for first-time visitors (h)">? <span class="gl-long">how to use this</span><span class="gl-short">how to use</span></button>
   <h1 class="sb-title">Log Analyzer <span class="amp">&amp;</span> Threat Detector <span class="by">by Diogo Ramos</span></h1>
   <span id="sb-counts" class="sb-counts" aria-hidden="true"></span>
   <span id="replay-clock" class="sb-clock" aria-hidden="true">replay --:--:--</span>
@@ -31,6 +32,15 @@
 </div>
 
 <main id="main">
+  <section id="start-here" class="box start" hidden aria-labelledby="start-title">
+    <h2 class="bt"><span class="c" aria-hidden="true">┌─</span><span id="start-title" class="t">Start here</span><span class="fill" aria-hidden="true"></span><span class="c" aria-hidden="true">─┐</span></h2>
+    <div class="bb">
+      <p>First time here? This is a security log dashboard. Everything on it is made-up sample data, so you can click anything. The short guide takes about a minute and tells you what to click and what to look at.</p>
+      <p class="btn-row"><button type="button" id="start-open" class="btn btn-go">Open the 60-second guide</button> <button type="button" id="start-dismiss" class="btn">Dismiss</button> <span class="muted">You can bring the guide back any time with the "?" button in the top bar.</span></p>
+    </div>
+    <div class="bf" aria-hidden="true"><span>└</span><span class="fill"></span><span>┘</span></div>
+  </section>
+
   <section id="error" class="error" hidden aria-live="assertive"></section>
   <noscript><section class="error">This dashboard needs JavaScript to draw the charts. The generated reports are in the repository's <code>reports/</code> folder.</section></noscript>
 
@@ -192,10 +202,62 @@
       <dt>e</dt><dd>export the filtered alerts as CSV</dd>
       <dt>u</dt><dd>load your own alerts.json</dd>
       <dt>p</dt><dd>pause or resume the event tail</dd>
+      <dt>h</dt><dd>open the "how to use this" guide</dd>
       <dt>?</dt><dd>show or hide this help</dd>
       <dt>Esc</dt><dd>close whatever is open</dd>
     </dl>
     <p class="muted">Press Esc or ? to close.</p>
+  </div>
+</div>
+
+<div id="guide" class="guide" role="dialog" aria-modal="true" aria-labelledby="guide-title" hidden>
+  <div class="guide-box">
+    <div class="guide-head">
+      <p class="guide-cmd" aria-hidden="true">$ man how-to-use-this</p>
+      <h2 id="guide-title">How to use this</h2>
+      <button type="button" id="guide-close" class="btn" aria-label="Close the guide">Close (Esc)</button>
+    </div>
+    <div id="guide-scroll" class="guide-scroll" tabindex="0" role="region" aria-label="Guide text, scrollable">
+      <section aria-labelledby="g-what">
+        <h3 id="g-what">What this is</h3>
+        <p>A small log analyzer I wrote. It reads three kinds of logs (Linux SSH logins, Windows Security events and web server access logs), flags suspicious patterns, and says what to do next. A SIEM does the same job at a much bigger scale, and I built this one to find out what "correlating logs" actually means. All the data here is synthetic, so nothing you click touches a real system.</p>
+      </section>
+      <section aria-labelledby="g-try">
+        <h3 id="g-try">Try this in 60 seconds</h3>
+        <ol class="g-steps">
+          <li><b>Click the "critical" bar</b> in the four coloured bars at the top. The alert list drops from 30 alerts to the 6 that would need someone right now. Notice "6 of 30 shown" above the list. Click the bar again to switch the filter off.</li>
+          <li><b>Click the row "SQL injection probes"</b> (rule WEB-002). A panel opens (on the right on a desktop, full screen on a phone). Notice the plain-English "What happened", the raw log lines under "Evidence", and the numbered "Recommended response". That is what an on-call person needs.</li>
+          <li><b>In that panel, find "Part of INC-03" and click "Show only this incident".</b> Three alerts remain, all from one IP address: a scanning tool, then SQL injection, then script injection. Separate alerts have become one story.</li>
+          <li><b>Click "Reset", then click INC-02 in the Incidents box.</b> Nine alerts show up. Click the "First seen" column title to read them in time order: password spraying, a login that works, encoded PowerShell, a new admin account called helpdesk_tmp. That is one break-in from start to finish.</li>
+          <li><b>Look at the Event tail</b> near the timeline. It replays the log lines behind the alerts. Click "pause" to stop it. It is a replay of the sample data, not a live feed.</li>
+          <li><b>Scroll down to the MITRE ATT&amp;CK table and click the row for T1110.003.</b> The list filters to the two password spraying alerts. Press ? any time for the keyboard shortcuts (j and k move between alerts, Enter opens one).</li>
+        </ol>
+      </section>
+      <section aria-labelledby="g-gloss">
+        <h3 id="g-gloss">Words you will see</h3>
+        <dl class="g-gloss">
+          <dt>Log</dt><dd>A diary a computer keeps: who logged in, what was requested, what failed.</dd>
+          <dt>Alert</dt><dd>One thing my rules flagged as suspicious, with the evidence behind it.</dd>
+          <dt>Incident</dt><dd>Several alerts grouped together because they share a source IP, or a machine and a time window.</dd>
+          <dt>Severity</dt><dd>How urgent an alert is: critical, high, medium or low.</dd>
+          <dt>Source IP</dt><dd>The network address a request came from. Addresses here are reserved for examples, so none are real.</dd>
+          <dt>Brute force</dt><dd>One source guessing passwords over and over on a few accounts.</dd>
+          <dt>Password spraying</dt><dd>One source trying a couple of common passwords on lots of accounts, so no single account looks hammered.</dd>
+          <dt>Off-hours login</dt><dd>A login outside normal working hours, which is worth a second look.</dd>
+          <dt>SQL injection</dt><dd>Typing database commands into a web form or URL to trick a site into leaking data.</dd>
+          <dt>XSS (cross-site scripting)</dt><dd>Sneaking script code into a web page so it runs in another visitor's browser.</dd>
+          <dt>Path traversal</dt><dd>Using ../ in a web address to reach files that should be off limits.</dd>
+          <dt>Living off the land</dt><dd>An attacker using tools already on the machine (like certutil or net.exe) so there is nothing new to detect.</dd>
+          <dt>MITRE ATT&amp;CK</dt><dd>A public catalogue of attacker techniques, each with an ID like T1110. I tag every alert with the ones that apply.</dd>
+          <dt>Event tail</dt><dd>The scrolling log at the top right. Named after the <code>tail</code> command that follows a log file.</dd>
+        </dl>
+      </section>
+      <section aria-labelledby="g-skills">
+        <h3 id="g-skills">What this shows about my skills</h3>
+        <p>I can read messy logs from different systems and work out what matters. I can turn that into a clear next step, like a good ticket note, and I test my work (167 tests plus a real-browser check). I'm aiming at help desk, IT support and data analyst roles, and this is how I practise noticing patterns in data and explaining them to the next person.</p>
+      </section>
+      <p class="g-foot"><button type="button" id="guide-keys" class="btn">Keyboard shortcuts</button> <span class="muted">Press Esc to close this guide.</span></p>
+    </div>
   </div>
 </div>
 

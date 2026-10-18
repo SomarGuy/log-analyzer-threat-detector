@@ -654,6 +654,40 @@
     try { history.replaceState(null, "", location.pathname + location.search); } catch (e) { /* ignore */ }
     if (!silent && lastFocus && lastFocus.focus) lastFocus.focus();
   }
+  // ------------------------------------------------------------------ guide ("how to use this") and the Start here callout
+  var GUIDE_KEY = "log-analyzer-guide-dismissed";
+  var guideReturn = null;
+  function storeGet() { try { return window.localStorage.getItem(GUIDE_KEY); } catch (e) { return null; } }
+  function storeSet() { try { window.localStorage.setItem(GUIDE_KEY, "1"); } catch (e) { /* private mode: it just comes back next visit */ } }
+  function guideOpen() { return !$("guide").hidden; }
+  function openGuide() {
+    if (guideOpen()) return;
+    hideDrawer(true); toggleHelp(false);
+    guideReturn = document.activeElement;
+    $("guide").hidden = false;
+    $("guide-scroll").scrollTop = 0;
+    $("guide-close").focus();
+  }
+  function closeGuide() {
+    if (!guideOpen()) return;
+    $("guide").hidden = true;
+    var back = guideReturn && document.body.contains(guideReturn) && !guideReturn.hidden ? guideReturn : $("guide-open");
+    guideReturn = null;
+    back.focus();
+  }
+  function dismissStart() {
+    storeSet();
+    var st = $("start-here"), had = st.contains(document.activeElement);
+    st.hidden = true;
+    if (had) $("guide-open").focus();
+  }
+  function trapGuideTab(e) {
+    var f = $("guide").querySelectorAll("button, [href], [tabindex='0']");
+    var first = f[0], last = f[f.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    else if (!$("guide").contains(document.activeElement)) { e.preventDefault(); first.focus(); }
+  }
   function toggleHelp(show) {
     var hp = $("help");
     var want = show === undefined ? hp.hidden : show;
@@ -720,6 +754,13 @@
     $("f-reset").addEventListener("click", resetFilters);
     $("f-export").addEventListener("click", exportCsv);
     $("d-close").addEventListener("click", function () { hideDrawer(); });
+    $("guide-open").addEventListener("click", openGuide);
+    $("guide-close").addEventListener("click", closeGuide);
+    $("guide").addEventListener("click", function (e) { if (e.target === $("guide")) closeGuide(); });
+    $("guide-keys").addEventListener("click", function () { closeGuide(); toggleHelp(true); });
+    $("start-open").addEventListener("click", openGuide);
+    $("start-dismiss").addEventListener("click", dismissStart);
+    $("start-here").hidden = !!storeGet();
     $("scrim").addEventListener("click", function () { hideDrawer(); });
     $("help").addEventListener("click", function (e) { if (e.target === $("help")) toggleHelp(false); });
     $("tail-toggle").addEventListener("click", tailToggle);
@@ -735,6 +776,12 @@
     });
     document.addEventListener("keydown", function (e) {
       if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (guideOpen()) {      // the guide is a modal: Esc closes it, Tab stays inside it, other keys keep their normal job (scrolling)
+        if (e.key === "Escape" || e.key === "h") { e.preventDefault(); closeGuide(); }
+        else if (e.key === "Tab") trapGuideTab(e);
+        return;
+      }
+      if (e.key === "h" && !isTyping(e.target)) { e.preventDefault(); openGuide(); return; }
       if (isTyping(e.target)) {
         if (e.key === "Escape" || (e.key === "Enter" && e.target.id === "f-search")) { e.preventDefault(); e.target.blur(); }
         return;

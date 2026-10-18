@@ -55,6 +55,10 @@ button { cursor: pointer; }
 .win { color: #021006; text-decoration: none; padding: 0 .6ch; }
 .win:hover { background: #021006; color: var(--green); }
 .win.on { background: var(--amber); color: #000; font-weight: 700; }
+.win-guide { flex: none; background: var(--amber); color: #000; border: 0; font-weight: 700; padding: 0 1.2ch; align-self: stretch; line-height: 1; }
+.win-guide:hover { background: #021006; color: var(--amber); }
+.win-guide:focus-visible { outline: 2px solid #021006; outline-offset: -3px; }
+.gl-short { display: none; }
 .sb-title { font: inherit; font-weight: 700; margin: 0 auto 0 1ch; overflow: hidden; text-overflow: ellipsis; }
 .sb-title .by { font-weight: 400; opacity: .8; }
 .sb-counts { display: flex; gap: 1.4ch; }
@@ -241,7 +245,7 @@ details.rules .table-scroll { max-height: 280px; margin-top: 6px; }
   position: fixed; top: 0; right: 0; bottom: 0; width: min(760px, 100%); z-index: 50; background: var(--bg); border-left: 1px solid var(--amber);
   display: flex; flex-direction: column; box-shadow: -12px 0 40px rgba(0, 0, 0, .8); outline: none;
 }
-.drawer[hidden], .scrim[hidden], .help[hidden] { display: none; }
+.drawer[hidden], .scrim[hidden], .help[hidden], .guide[hidden], .start[hidden] { display: none; }
 .drawer-head { padding: 8px 2ch 6px; border-bottom: 1px dashed var(--line); position: relative; }
 .drawer-head h2 { font: inherit; font-weight: 700; color: var(--green); margin: 2px 0 6px; padding-right: 16ch; font-size: 15px; line-height: 1.35; }
 .drawer-head .btn { position: absolute; top: 8px; right: 2ch; }
@@ -272,6 +276,32 @@ pre.evidence { margin: 0; padding: 6px 1ch; background: #020402; border: 1px sol
 dl.keys { display: grid; grid-template-columns: 12ch minmax(0, 1fr); gap: 2px 1.5ch; margin: 0 0 8px; }
 dl.keys dt { color: var(--amber); font-weight: 700; } dl.keys dd { margin: 0; }
 
+/* start-here callout and the guide dialog */
+.start { margin: 8px 0 10px; }
+.start .bt .t { color: var(--amber); text-shadow: none; }
+.start .bb { background: rgba(255, 176, 0, .04); }
+.start p { margin: 0 0 6px; }
+.start .btn-row { margin-top: 8px; }
+.btn-go { border-color: var(--amber); color: var(--amber); }
+.btn-go:hover { background: var(--amber); color: #000; }
+.guide { position: fixed; inset: 0; z-index: 70; background: rgba(0, 0, 0, .8); display: flex; align-items: center; justify-content: center; padding: 12px; }
+.guide-box { background: var(--bg); border: 3px double var(--green); width: 100%; max-width: 92ch; max-height: 94vh; display: flex; flex-direction: column; min-height: 0; }
+.guide-head { position: relative; padding: 8px 3ch 6px; border-bottom: 1px dashed var(--line); }
+.guide-cmd { margin: 0; color: var(--muted); }
+.guide-head h2 { font: inherit; font-weight: 700; font-size: 16px; color: var(--green); margin: 2px 0 0; padding-right: 14ch; }
+.guide-head .btn { position: absolute; top: 8px; right: 2ch; }
+.guide-scroll { overflow: auto; padding: 4px 3ch 14px; flex: 1 1 auto; min-height: 0; scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+.guide-scroll section { margin-top: 12px; }
+.guide-scroll h3 { font: inherit; font-weight: 700; color: var(--amber); margin: 0 0 4px; }
+.guide-scroll h3::before { content: "== "; color: var(--line); } .guide-scroll h3::after { content: " =="; color: var(--line); }
+.guide-scroll p { margin: 0 0 6px; }
+.g-steps { margin: 0; padding-left: 3ch; } .g-steps li { margin-bottom: 7px; padding-left: .4ch; } .g-steps li::marker { color: var(--amber); font-weight: 700; }
+.g-steps b { color: var(--green); font-weight: 700; }
+dl.g-gloss { display: grid; grid-template-columns: 24ch minmax(0, 1fr); gap: 3px 1.5ch; margin: 0; }
+dl.g-gloss dt { color: var(--amber); font-weight: 700; } dl.g-gloss dd { margin: 0; }
+.g-foot { margin-top: 14px; }
+.guide-scroll:focus-visible { outline-offset: -3px; }
+
 /* ------------------------------------------------------------ smaller screens */
 @media (max-width: 1100px) {
   #sec-alerts { contain: none; min-height: 0; } .alert-scroll { flex: none; max-height: 70vh; }
@@ -282,8 +312,15 @@ dl.keys dt { color: var(--amber); font-weight: 700; } dl.keys dd { margin: 0; }
 @media (max-width: 760px) {
   body { font-size: 12.5px; padding-bottom: 40px; }
   .statusbar { gap: 1ch; }
-  .sb-title, .sb-clock { display: none; }
+  .sb-title, .sb-clock, .sb-session { display: none; }
   .sb-windows { gap: 0; } .win { padding: 0 .4ch; } .win:nth-child(n+4) { display: none; }
+  .win-guide { margin-left: auto; padding: 0 1.4ch; min-width: 44px; }
+  .gl-long { display: none; } .gl-short { display: inline; }
+  .guide { padding: 0; align-items: stretch; } .guide-box { max-height: none; height: 100%; border-width: 0 0 0 0; }
+  .guide-head { padding: 8px 12px 6px; } .guide-head .btn { right: 12px; min-height: 36px; }
+  .guide-scroll { padding: 4px 12px 24px; }
+  dl.g-gloss { grid-template-columns: 1fr; } dl.g-gloss dd { margin-bottom: 6px; }
+  .start .btn, .g-foot .btn { min-height: 38px; }
   .hide-sm { display: none; }
   .filters .btn, .filters select { flex: 1 1 auto; }
   .legend { display: none; }

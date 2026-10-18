@@ -13,6 +13,8 @@ const outDir = process.argv[3] || "screenshots";
   const browser = await chromium.launch({ executablePath: process.env.CHROME || "/usr/bin/google-chrome", args: ["--no-sandbox"] });
   const errors = [];
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, acceptDownloads: true, permissions: ["clipboard-read", "clipboard-write"] });
+  // the existing checks and screenshots run as a returning visitor who already dismissed the Start here callout
+  await ctx.addInitScript(() => { try { localStorage.setItem("log-analyzer-guide-dismissed", "1"); } catch (e) { /* ignore */ } });
   const page = await ctx.newPage();
   page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
   page.on("pageerror", (e) => errors.push(String(e)));
@@ -171,6 +173,91 @@ const outDir = process.argv[3] || "screenshots";
   const sw = await m.evaluate(() => document.documentElement.scrollWidth);
   assert(sw <= 392, "no horizontal overflow on mobile, got " + sw);
   await m.screenshot({ path: outDir + "/04-mobile.png" });
+
+  // ---- the "how to use this" guide: first visit callout, dismissal is remembered, and every step in the guide really works
+  async function guideWalk(vp, shot) {
+    const gctx = await browser.newContext({ viewport: vp, deviceScaleFactor: vp.width < 500 ? 2 : 1 });
+    const g = await gctx.newPage();
+    g.on("console", (m) => { if (m.type() === "error") errors.push("guide: " + m.text()); });
+    g.on("pageerror", (e) => errors.push("guide: " + e));
+    const grows = () => g.locator("#alert-table tbody tr").count();
+    await g.goto(base + "/", { waitUntil: "networkidle" });
+    await g.waitForSelector("#alert-table tbody tr");
+    assert(await g.locator("#start-here").isVisible(), "Start here callout shows on a first visit");
+    assert((await g.evaluate(() => document.documentElement.scrollWidth)) <= vp.width + 2, "no horizontal overflow with the callout");
+    await g.click("#start-dismiss");
+    assert(await g.locator("#start-here").isHidden(), "dismiss hides the callout");
+    await g.reload({ waitUntil: "networkidle" });
+    await g.waitForSelector("#alert-table tbody tr");
+    assert(await g.locator("#start-here").isHidden(), "dismissal is remembered after a reload");
+    // always re-openable from the top bar
+    assert(await g.locator("#guide-open").isVisible(), "how to use this button is visible");
+    await g.click("#guide-open");
+    assert(await g.locator("#guide").isVisible(), "guide opens from the top bar");
+    assert.strictEqual(await g.evaluate(() => document.activeElement.id), "guide-close", "focus moves into the guide");
+    assert((await g.evaluate(() => document.documentElement.scrollWidth)) <= vp.width + 2, "no horizontal overflow with the guide open");
+    assert.strictEqual(await g.locator("#guide .g-steps li").count(), 6, "six steps");
+    for (const w of ["What this is", "Try this in 60 seconds", "Words you will see", "What this shows about my skills"]) assert((await g.locator("#guide").textContent()).includes(w), w);
+    // focus stays inside the dialog
+    for (let i = 0; i < 6; i++) await g.keyboard.press("Tab");
+    assert(await g.evaluate(() => document.getElementById("guide").contains(document.activeElement)), "Tab stays inside the guide");
+    await g.keyboard.press("Escape");
+    assert(await g.locator("#guide").isHidden(), "Esc closes the guide");
+    assert.strictEqual(await g.evaluate(() => document.activeElement.id), "guide-open", "focus returns to the button");
+    await g.keyboard.press("h");
+    assert(await g.locator("#guide").isVisible(), "h opens the guide");
+    await g.evaluate(() => { document.getElementById("guide-scroll").scrollTop = 0; });
+    await g.screenshot({ path: outDir + "/" + shot });
+    await g.click("#guide-close");
+    // the callout button opens it too (re-show by clearing storage)
+    // step 1: the critical bar
+    const critN = (await g.locator('.meter[data-sev="critical"] .n').textContent()).trim();
+    await g.click('.meter[data-sev="critical"]');
+    assert.strictEqual(String(await grows()), critN, "step 1: critical bar filters the list");
+    assert.strictEqual((await g.locator("#result-count").textContent()).trim(), critN + " of 30 shown", "step 1: result count text");
+    await g.click('.meter[data-sev="critical"]');
+    assert.strictEqual(await grows(), 30, "step 1: clicking the bar again clears the filter");
+    // step 2: SQL injection row opens the panel with the sections the guide names
+    await g.locator("#alert-table tbody tr", { hasText: "SQL injection probes" }).click();
+    await g.waitForSelector("#drawer:not([hidden])");
+    const dtxt = await g.locator("#drawer-body").innerText();
+    for (const w of ["What happened", "Evidence (raw log lines)", "Recommended response", "Part of INC-03"]) assert(dtxt.includes(w), "step 2/3: " + w);
+    // step 3: show only this incident
+    await g.locator("#drawer-body").getByRole("button", { name: "Show only this incident" }).click();
+    assert.strictEqual(await grows(), 3, "step 3: three alerts in INC-03");
+    const t3 = await g.locator("#alert-table tbody").innerText();
+    assert(t3.includes("scanner") && t3.includes("SQL injection") && t3.includes("Cross-site scripting"), "step 3: scanner, SQLi, XSS");
+    assert.strictEqual(new Set(await g.locator("#alert-table tbody tr td:nth-child(6)").allInnerTexts()).size, 1, "step 3: all from one IP");
+    // step 4: reset, INC-02, sort by first seen
+    await g.click("#f-reset");
+    assert.strictEqual(await grows(), 30, "step 4: reset");
+    await g.locator('.inc[data-inc="INC-02"]').click();
+    assert.strictEqual(await grows(), 9, "step 4: nine alerts in INC-02");
+    await g.locator("button.sort[data-sort=time]").click();
+    const order = await g.locator("#alert-table tbody tr td:nth-child(5)").allInnerTexts();
+    assert(/Password spraying/.test(order[0]) && /Encoded PowerShell/.test(order[2]) && /helpdesk_tmp/.test(order.slice(5).join(" ")), "step 4: time order tells the story");
+    // step 5: event tail and pause button
+    await g.click("#f-reset");
+    assert(await g.locator("#tail-toggle").isVisible() && (await g.locator("#tail-toggle").textContent()) === "pause", "step 5: pause button");
+    await g.click("#tail-toggle");
+    assert(/paused/.test(await g.locator("#tail-state").textContent()), "step 5: pause works");
+    await g.click("#tail-toggle");
+    // step 6: T1110.003 row
+    await g.locator('#mitre-table tr[data-tech="T1110.003"]').click();
+    assert.strictEqual(await grows(), 2, "step 6: two password spraying alerts");
+    await g.click("#f-reset");
+    // keyboard-only: the callout's open button works too
+    await g.evaluate(() => localStorage.clear());
+    await g.reload({ waitUntil: "networkidle" });
+    await g.waitForSelector("#alert-table tbody tr");
+    assert(await g.locator("#start-here").isVisible(), "callout returns when storage is cleared");
+    await g.focus("#start-open"); await g.keyboard.press("Enter");
+    assert(await g.locator("#guide").isVisible(), "Start here button opens the guide with the keyboard");
+    await g.keyboard.press("Escape");
+    await gctx.close();
+  }
+  await guideWalk({ width: 1440, height: 900 }, "07-how-to-use.png");
+  await guideWalk({ width: 390, height: 844 }, "08-how-to-use-mobile.png");
 
   assert.deepStrictEqual(errors, [], "no console errors: " + errors.join("; "));
   console.log("dashboard smoke test OK:", { alerts: total, critical: crit, mitreTechniqueFilter: t1190 });

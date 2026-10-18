@@ -10,6 +10,21 @@ I'm Diogo, a CS student in Toronto, and I'm teaching myself forensics and securi
 
 **Live demo (synthetic data):** https://log-analyzer-threat-detector.vercel.app
 
+## How to use the demo
+
+The live site has a **"how to use this"** button in the top bar (or press `h`) and a small "Start here" box the first time you visit. Both open the same guide. If you only have a minute:
+
+1. Click the **critical** bar in the four coloured bars at the top. The list drops from 30 alerts to the 6 that need someone right now. Click the bar again to clear it.
+2. Click the row **SQL injection probes** (`WEB-002`). A panel opens with a plain-English "What happened", the raw log lines under "Evidence" and numbered "Recommended response" steps.
+3. In that panel, find **Part of INC-03** and click **Show only this incident**. Three alerts from one IP, in order: a scanning tool, SQL injection, then script injection. Separate alerts have become one story.
+4. Click **Reset**, then click **INC-02** in the Incidents box. Click the "First seen" column title to read the nine alerts in time order: password spraying, a login that works, encoded PowerShell, a new admin account called `helpdesk_tmp`.
+5. Watch the **Event tail** and click **pause**. It is a replay of the sample data, not a live feed.
+6. Scroll to the MITRE ATT&CK table and click the **T1110.003** row to see just the password spraying alerts. Press `?` for the keyboard shortcuts.
+
+The guide also has a short glossary (brute force, password spraying, SQL injection, MITRE ATT&CK and so on) and a note on what the project says about my skills. A browser test in `scripts/dashboard_smoke.js` follows these exact steps, so the guide and the page can't drift apart.
+
+![The how to use this guide](screenshots/07-how-to-use.png)
+
 ## Why I built it
 
 Help desk and junior security people get asked "is this normal?" all the time. A burst of failed SSH logins at 2 a.m., a new local admin nobody remembers creating, a web server full of 404s. The answer is in the logs, but every source has its own format and nobody wants to `grep` three machines at once. I kept reading that a SIEM "correlates logs" without really knowing what that meant, so I built a small one to find out. I wanted to parse differently shaped logs into one model, write readable rules, explain why something fired, and say what to do next.
@@ -44,6 +59,7 @@ Keyboard shortcuts (press `?` on the page for the same list):
 | `e` | export the filtered alerts as CSV |
 | `u` | load your own `alerts.json` |
 | `p` | pause or resume the event tail |
+| `h` | open the "how to use this" guide |
 | `?` / `Esc` | help / close whatever is open |
 
 A few details: uploaded files are read in your browser and never sent anywhere. Log lines are always inserted as text, never as HTML, because logs contain strings an attacker chose. The Content-Security-Policy is strict (`default-src 'self'`, no inline script or style). The one font (a subset of IBM Plex Mono, licence in `dashboard/fonts/`) is served from the same site, so no third party is contacted.
@@ -112,7 +128,7 @@ python -m venv .venv
 pip install -r requirements-dev.txt        # pytest + pytest-cov, tests only
 
 python -m loganalyzer demo                 # make synthetic logs, analyze, write reports, self-check
-python -m pytest                           # 161 tests
+python -m pytest                           # 167 tests
 python -m http.server 8000 --directory dashboard    # open http://localhost:8000
 ```
 
@@ -268,7 +284,7 @@ python -m pytest                                        # everything
 python -m pytest --cov=loganalyzer --cov-report=term-missing
 ```
 
-161 tests. Line coverage of the `loganalyzer` package was 99% when I measured it with `pytest-cov`. Coverage only shows the code ran, not that it's right, so I wrote the tests around behaviour. Each detector has a fires / doesn't fire / boundary case (exactly 10 failures vs 9, 07:00 vs 19:00). Parsers get malformed and strange input. The rule validator has to reject every kind of broken rule. Report schemas are checked, the CLI is run end to end including exit codes, and the synthetic generator is checked for determinism and labelling. The dashboard folder gets static checks too: no inline scripts, no `innerHTML`, CSP present, font files exist, no em-dashes in the copy.
+167 tests. Line coverage of the `loganalyzer` package was 99% when I measured it with `pytest-cov`. Coverage only shows the code ran, not that it's right, so I wrote the tests around behaviour. Each detector has a fires / doesn't fire / boundary case (exactly 10 failures vs 9, 07:00 vs 19:00). Parsers get malformed and strange input. The rule validator has to reject every kind of broken rule. Report schemas are checked, the CLI is run end to end including exit codes, and the synthetic generator is checked for determinism and labelling. The dashboard folder gets static checks too: no inline scripts, no `innerHTML`, CSP present, font files exist, no em-dashes in the copy.
 
 `scripts/dashboard_smoke.js` drives the real dashboard in headless Chrome: the tail scrolling and pausing, j / k / g / G, Enter, `/`, `?`, number keys, every filter, the CSV download, copy as ticket note, loading a file, and a hostile `<script>` title staying inert.
 
