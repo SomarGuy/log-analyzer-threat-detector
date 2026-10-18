@@ -28,14 +28,59 @@ def test_vercel_json_is_valid_and_sets_security_headers():
     cfg = json.loads((DASH / "vercel.json").read_text())
     headers = {h["key"]: h["value"] for rule in cfg["headers"] for h in rule["headers"]}
     assert headers["X-Content-Type-Options"] == "nosniff"
-    assert "default-src 'self'" in headers["Content-Security-Policy"] and "script-src 'self'" in headers["Content-Security-Policy"]
+    csp = headers["Content-Security-Policy"]
+    assert "default-src 'self'" in csp and "script-src 'self'" in csp and "style-src 'self'" in csp and "font-src 'self'" in csp
+    assert "unsafe-inline" not in csp and "unsafe-eval" not in csp and "http" not in csp
+    root = json.loads((DASH.parent / "vercel.json").read_text())   # the root config is what a repo import uses
+    root_csp = {h["key"]: h["value"] for rule in root["headers"] for h in rule["headers"]}["Content-Security-Policy"]
+    assert root_csp == csp
 
 
 def test_index_contains_synthetic_notice_and_required_sections():
     html = (DASH / "index.html").read_text()
     assert "SYNTHETIC DATA" in html
-    for needle in ("id=\"timeline\"", "id=\"top-ips\"", "id=\"mitre-table\"", "id=\"alert-table\"", "id=\"drawer\"", "id=\"kpis\""):
+    for needle in ("id=\"timeline\"", "id=\"top-ips\"", "id=\"mitre-table\"", "id=\"alert-table\"", "id=\"drawer\"", "id=\"kpis\"",
+                   "id=\"incidents\"", "id=\"tail\"", "id=\"statusbar\"", "id=\"help\"", "id=\"keybar\"", "id=\"f-export\"", "id=\"file-input\""):
         assert needle in html
+
+
+def test_console_pieces_are_wired_up():
+    """Status bar, event tail, key bar and the keyboard shortcuts exist in the code, not just in the HTML."""
+    js = (DASH / "app.js").read_text()
+    for key in ('case "j"', 'case "k"', 'key === "/"', 'key === "?"', 'case "p"', 'case "e"', 'case "r"', 'case "c"'):
+        assert key in js, key
+    assert "tailReset" in js and "tailTick" in js and "exportCsv" in js and "ticketNote" in js
+    html = (DASH / "index.html").read_text()
+    for label in ("Alerts", "Timeline", "Event tail", "Top IPs", "Incidents", "MITRE ATT&amp;CK", "Why I built this", "Export CSV", "Load your own alerts.json"):
+        assert label in html, label
+
+
+def test_bundled_font_and_box_drawing_borders():
+    css = (DASH / "style.css").read_text()
+    html = (DASH / "index.html").read_text()
+    urls = re.findall(r"url\(\"?([^)\"]+)\"?\)", css)
+    assert urls and all(not u.startswith(("http", "//")) for u in urls)      # no remote fonts (strict CSP)
+    for u in urls:
+        assert (DASH / u).is_file(), u
+    assert "@import" not in css
+    assert (DASH / "fonts" / "LICENSE-font.txt").is_file()
+    assert "┌" in html and "└" in html and "┘" in html and "─" in css      # panels are drawn with box-drawing characters
+    assert "background: var(--bg)" in css and "--bg: #060906" in css           # dark console identity
+
+
+def test_why_i_built_this_note_is_personal_and_plain():
+    html = (DASH / "index.html").read_text()
+    note = html[html.index('id="sec-why"'):html.index("</section>", html.index('id="sec-why"'))]
+    for needle in ("I'm a CS student in Toronto", "password spraying", "What I'd improve"):
+        assert needle in note, needle
+    assert re.search(r"\bI\b", note)
+    for banned in ("leverage", "robust", "comprehensive", "seamless", "cutting-edge", "passionate", "synergy"):
+        assert banned not in note.lower(), banned
+
+
+def test_no_em_dashes_in_dashboard_or_readme():
+    for f in (DASH / "index.html", DASH / "app.js", DASH / "style.css", DASH.parent / "README.md"):
+        assert "\u2014" not in f.read_text(), f.name
 
 
 def test_bundled_alerts_json_matches_dashboard_expectations():

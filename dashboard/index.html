@@ -4,27 +4,25 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Log Analyzer &amp; Threat Detector | Diogo Ramos</title>
-<meta name="description" content="Blue-team portfolio project: a log analysis engine that detects SSH brute force, password spraying, new admin accounts and web attacks, mapped to MITRE ATT&amp;CK. Dashboard shows SYNTHETIC sample data.">
+<meta name="description" content="A log analyzer I wrote that finds SSH brute force, password spraying, new admin accounts and web attacks and maps them to MITRE ATT&amp;CK. The dashboard shows SYNTHETIC sample data.">
 <meta name="color-scheme" content="dark">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<a class="skip" href="#alerts-title">Skip to alert list</a>
 
-<header class="top">
-  <div class="brand">
-    <svg class="logo" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 4l9 3.5v7.2c0 5.6-3.7 10.3-9 12.3-5.3-2-9-6.7-9-12.3V7.5L16 4z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M10.5 16h3l1.8-4 2.6 8 1.8-4h1.8" fill="none" stroke="#ff4d6d" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-    <div>
-      <h1>Log Analyzer <span class="amp">&amp;</span> Threat Detector</h1>
-      <p class="tagline">Blue-team portfolio project by Diogo Ramos &middot; Python detection engine + static dashboard</p>
-    </div>
-  </div>
-  <div class="top-actions">
-    <span id="dataset-meta" class="meta" aria-live="polite">Loading…</span>
-    <label class="btn" for="file-input">Load your own alerts.json</label>
-    <input id="file-input" type="file" accept="application/json,.json" hidden>
-  </div>
+<header id="statusbar" class="statusbar">
+  <span class="sb-session">[log-analyzer]</span>
+  <nav class="sb-windows" aria-label="Jump to a section">
+    <a href="#sec-overview" class="win on">0:overview</a>
+    <a href="#sec-alerts" class="win">1:alerts</a>
+    <a href="#sec-incidents" class="win">2:incidents</a>
+    <a href="#sec-mitre" class="win">3:mitre</a>
+    <a href="#sec-why" class="win">4:why</a>
+  </nav>
+  <h1 class="sb-title">Log Analyzer <span class="amp">&amp;</span> Threat Detector <span class="by">by Diogo Ramos</span></h1>
+  <span id="sb-counts" class="sb-counts" aria-hidden="true"></span>
+  <span id="replay-clock" class="sb-clock" aria-hidden="true">replay --:--:--</span>
 </header>
 
 <div id="banner" class="banner synthetic" role="note">
@@ -33,107 +31,173 @@
 </div>
 
 <main id="main">
-  <section id="error" class="panel error" hidden aria-live="assertive"></section>
-  <noscript><section class="panel error">This dashboard needs JavaScript to draw the charts. The generated reports are in the repository's <code>reports/</code> folder.</section></noscript>
+  <section id="error" class="error" hidden aria-live="assertive"></section>
+  <noscript><section class="error">This dashboard needs JavaScript to draw the charts. The generated reports are in the repository's <code>reports/</code> folder.</section></noscript>
 
-  <section class="kpis" id="kpis" aria-label="Severity summary"></section>
-
-  <div class="grid two">
-    <section class="panel wide chart-panel" aria-labelledby="timeline-title">
-      <div class="panel-head">
-        <h2 id="timeline-title">Alert timeline</h2>
-        <div class="legend" id="timeline-legend" aria-hidden="true"></div>
-      </div>
-      <p class="hint">Alerts per hour by severity (at first seen). The grey area is raw log volume. Click a bar to filter the list to that hour.</p>
-      <div class="chart-wrap">
-        <canvas id="timeline" role="img" aria-label="Stacked bar chart of alerts over time by severity"></canvas>
-        <div id="tooltip" class="tooltip" role="status" hidden></div>
-      </div>
-    </section>
-
-    <section class="panel" aria-labelledby="ips-title">
-      <div class="panel-head"><h2 id="ips-title">Top source IPs</h2></div>
-      <p class="hint">Ranked by highest severity, then alert count. Click to filter.</p>
-      <ol id="top-ips" class="ip-list"></ol>
-    </section>
-  </div>
-
-  <div class="grid two alt">
-    <section class="panel" aria-labelledby="inc-title">
-      <div class="panel-head"><h2 id="inc-title">Correlated incidents</h2></div>
-      <p class="hint">Alerts that share a source IP (or a host and time window) grouped into one story.</p>
-      <ul id="incidents" class="incident-list"></ul>
-    </section>
-
-    <section class="panel wide" aria-labelledby="mitre-title">
-      <div class="panel-head"><h2 id="mitre-title">MITRE ATT&amp;CK mapping</h2></div>
-      <p class="hint">Techniques observed in this data set, in kill-chain order. Click a row to filter alerts.</p>
-      <div class="table-scroll">
-        <table class="data" id="mitre-table">
-          <thead><tr><th>Tactic</th><th>Technique</th><th>Name</th><th class="num">Alerts</th><th>Worst</th></tr></thead>
-          <tbody></tbody>
-        </table>
-      </div>
-    </section>
-  </div>
-
-  <section class="panel" aria-labelledby="alerts-title">
-    <div class="panel-head">
-      <h2 id="alerts-title">Alerts</h2>
-      <span id="result-count" class="meta" aria-live="polite"></span>
-    </div>
-    <form id="filters" class="filters" role="search" aria-label="Filter alerts">
-      <input id="f-search" type="search" placeholder="Search title, IP, user, host, rule, technique…" aria-label="Search alerts" autocomplete="off">
-      <div id="f-sev" class="chips" role="group" aria-label="Severity filter"></div>
-      <select id="f-source" aria-label="Log source"><option value="">All log sources</option></select>
-      <select id="f-tactic" aria-label="MITRE tactic"><option value="">All tactics</option></select>
-      <select id="f-rule" aria-label="Detection rule"><option value="">All rules</option></select>
-      <button type="button" id="f-reset" class="btn ghost">Reset</button>
-      <button type="button" id="f-export" class="btn ghost" title="Download the filtered alerts as CSV">Export CSV</button>
-    </form>
-    <div id="active-filters" class="active-filters" aria-live="polite"></div>
-    <div class="table-scroll">
-      <table class="data alerts" id="alert-table">
-        <thead><tr>
-          <th><button type="button" class="sort" data-sort="severity">Severity</button></th>
-          <th><button type="button" class="sort" data-sort="time">First seen</button></th>
-          <th>Rule</th><th>Alert</th><th class="hide-sm">Source IPs</th>
-          <th class="num hide-sm"><button type="button" class="sort" data-sort="count">Events</button></th>
-        </tr></thead>
-        <tbody></tbody>
-      </table>
-    </div>
-    <p id="empty" class="empty" hidden>No alerts match these filters.</p>
+  <section id="sec-overview" class="htop" aria-label="Severity summary">
+    <div id="kpis" class="kpis"></div>
+    <p id="dataset-meta" class="dataset-meta" aria-live="polite">Loading...</p>
   </section>
 
-  <details class="panel rules" id="rules-panel">
-    <summary><h2>Detection rules (<span id="rule-count">0</span>)</h2><span class="hint">Thresholds live in <code>rules/detection_rules.json</code></span></summary>
-    <div class="table-scroll">
-      <table class="data" id="rules-table">
-        <thead><tr><th>ID</th><th>Rule</th><th>Severity</th><th>Sources</th><th>ATT&amp;CK</th><th>Thresholds</th></tr></thead>
-        <tbody></tbody>
-      </table>
+  <div class="row r1">
+    <section class="box" aria-labelledby="timeline-title">
+      <h2 class="bt"><span class="c" aria-hidden="true">┌─</span><span id="timeline-title" class="t">Timeline</span><span class="fill" aria-hidden="true"></span><span id="timeline-legend" class="legend" aria-hidden="true"></span><span class="c" aria-hidden="true">─┐</span></h2>
+      <div class="bb">
+        <p class="hint">Alerts per hour, coloured by severity. The dim area is raw log volume. Click a column to filter the list to that hour.</p>
+        <div class="chart-wrap">
+          <canvas id="timeline" role="img" aria-label="Stacked bar chart of alerts over time by severity"></canvas>
+          <div id="tooltip" class="tooltip" role="status" hidden></div>
+        </div>
+      </div>
+      <div class="bf" aria-hidden="true"><span>└</span><span class="fill"></span><span>┘</span></div>
+    </section>
+
+    <section class="box tail-box" aria-labelledby="tail-title">
+      <h2 class="bt"><span class="c" aria-hidden="true">┌─</span><span id="tail-title" class="t">Event tail</span><span id="tail-state" class="tag-state" aria-live="off">replay</span><span class="fill" aria-hidden="true"></span><button type="button" id="tail-toggle" class="mini" title="Pause or resume the replay (p)">pause</button><span class="c" aria-hidden="true">─┐</span></h2>
+      <div class="bb tail-bb">
+        <div id="tail" class="tail" role="log" aria-live="off" aria-label="Replay of the events behind each alert, oldest first"></div>
+      </div>
+      <div class="bf" aria-hidden="true"><span>└</span><span class="fill"></span><span>┘</span></div>
+    </section>
+  </div>
+
+  <div class="row r2">
+    <section id="sec-alerts" class="box" aria-labelledby="alerts-title">
+      <h2 class="bt"><span class="c" aria-hidden="true">┌─</span><span id="alerts-title" class="t">Alerts</span><span id="result-count" class="tag-state" aria-live="polite"></span><span class="fill" aria-hidden="true"></span><span class="c" aria-hidden="true">─┐</span></h2>
+      <div class="bb">
+        <form id="filters" class="filters" role="search" aria-label="Filter alerts">
+          <label class="prompt" for="f-search"><span aria-hidden="true">filter&gt;</span><span class="sr">Search alerts</span></label>
+          <input id="f-search" type="text" placeholder="title, IP, user, host, rule, technique  ( / )" autocomplete="off" spellcheck="false">
+          <div id="f-sev" class="chips" role="group" aria-label="Severity filter"></div>
+          <select id="f-source" aria-label="Log source"><option value="">all log sources</option></select>
+          <select id="f-tactic" aria-label="MITRE tactic"><option value="">all tactics</option></select>
+          <select id="f-rule" aria-label="Detection rule"><option value="">all rules</option></select>
+          <button type="button" id="f-reset" class="btn" title="Clear every filter (r)">Reset</button>
+          <button type="button" id="f-export" class="btn" title="Download the filtered alerts as CSV (e)">Export CSV</button>
+          <label class="btn" for="file-input" title="Open an alerts.json you made with the analyzer (u)">Load your own alerts.json</label>
+          <input id="file-input" type="file" accept="application/json,.json" hidden>
+        </form>
+        <div id="active-filters" class="active-filters" aria-live="polite"></div>
+        <div class="table-scroll alert-scroll" id="alert-scroll">
+          <table class="data alerts" id="alert-table">
+            <thead><tr>
+              <th class="cur-col"><span class="sr">Selected</span></th>
+              <th><button type="button" class="sort" data-sort="severity">Severity</button></th>
+              <th><button type="button" class="sort" data-sort="time">First seen</button></th>
+              <th>Rule</th><th>Alert</th><th class="hide-sm">Source IPs</th>
+              <th class="num hide-sm"><button type="button" class="sort" data-sort="count">Events</button></th>
+            </tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <p id="empty" class="empty" hidden>No alerts match these filters. Press r to reset.</p>
+      </div>
+      <div class="bf" aria-hidden="true"><span>└</span><span class="fill"></span><span>┘</span></div>
+    </section>
+
+    <div class="stack">
+      <section class="box" aria-labelledby="ips-title">
+        <h2 class="bt"><span class="c" aria-hidden="true">┌─</span><span id="ips-title" class="t">Top IPs</span><span class="fill" aria-hidden="true"></span><span class="c" aria-hidden="true">─┐</span></h2>
+        <div class="bb">
+          <p class="hint">Worst severity first, then alert count. Click one to filter.</p>
+          <ol id="top-ips" class="ip-list"></ol>
+        </div>
+        <div class="bf" aria-hidden="true"><span>└</span><span class="fill"></span><span>┘</span></div>
+      </section>
+
+      <section id="sec-incidents" class="box" aria-labelledby="inc-title">
+        <h2 class="bt"><span class="c" aria-hidden="true">┌─</span><span id="inc-title" class="t">Incidents</span><span class="fill" aria-hidden="true"></span><span class="c" aria-hidden="true">─┐</span></h2>
+        <div class="bb">
+          <p class="hint">Alerts that share a source IP, or a host and a time window, grouped into one story.</p>
+          <ul id="incidents" class="incident-list"></ul>
+        </div>
+        <div class="bf" aria-hidden="true"><span>└</span><span class="fill"></span><span>┘</span></div>
+      </section>
     </div>
-  </details>
+  </div>
+
+  <div class="row r3">
+    <section id="sec-mitre" class="box" aria-labelledby="mitre-title">
+      <h2 class="bt"><span class="c" aria-hidden="true">┌─</span><span id="mitre-title" class="t">MITRE ATT&amp;CK</span><span class="fill" aria-hidden="true"></span><span class="c" aria-hidden="true">─┐</span></h2>
+      <div class="bb">
+        <p class="hint">Techniques seen in this data set, in kill-chain order. Click a row to filter the alerts.</p>
+        <div class="table-scroll">
+          <table class="data" id="mitre-table">
+            <thead><tr><th>Tactic</th><th>Technique</th><th>Name</th><th class="num">Alerts</th><th>Worst</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <details class="rules" id="rules-panel">
+          <summary>Detection rules (<span id="rule-count">0</span>) <span class="hint">thresholds live in rules/detection_rules.json</span></summary>
+          <div class="table-scroll">
+            <table class="data" id="rules-table">
+              <thead><tr><th>ID</th><th>Rule</th><th>Severity</th><th>Sources</th><th>ATT&amp;CK</th><th>Thresholds</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </details>
+      </div>
+      <div class="bf" aria-hidden="true"><span>└</span><span class="fill"></span><span>┘</span></div>
+    </section>
+
+    <section id="sec-why" class="box why" aria-labelledby="why-title">
+      <h2 class="bt"><span class="c" aria-hidden="true">┌─</span><span id="why-title" class="t">Why I built this</span><span class="fill" aria-hidden="true"></span><span class="c" aria-hidden="true">─┐</span></h2>
+      <div class="bb note">
+        <p>I'm a CS student in Toronto and I'm teaching myself forensics and security on the side. I kept reading that a SIEM "correlates logs" and I never really understood what that meant, so I wrote a small one to find out where it hurts.</p>
+        <p>The thing that surprised me most was brute force versus password spraying. I figured they'd look the same, since both are a pile of failed logins. They aren't. Brute force is one IP hammering a few accounts. Spraying is one IP trying a couple of passwords on lots of accounts. My first spray rule also fired during the first minute of a loud brute force, because early on every account had only been tried once or twice. I only noticed because I wrote a test that replays the attack. The fix was to judge the whole attack instead of the ramp-up.</p>
+        <p>What I'd improve: every log here is fake and written by me, so 12 out of 12 only proves the rules do what I told them to. I want to try it on logs from a throwaway VM I control. It also needs a per-user idea of normal instead of fixed office hours, proper timezone handling, and a way to catch slow attacks, because a few tries an hour walks right past it.</p>
+        <p>The tail above is a replay of the synthetic events, not a live feed. I just like how it feels to watch.</p>
+      </div>
+      <div class="bf" aria-hidden="true"><span>└</span><span class="fill"></span><span>┘</span></div>
+    </section>
+  </div>
+
+  <p class="foot">Portfolio project by Diogo Ramos. Detection is rule-based and I only tested it on synthetic data I generated, so treat it as a learning project and not a real SIEM. Timestamps are shown as written in the logs, with no timezone conversion.</p>
+  <p id="foot-meta" class="foot meta"></p>
 </main>
 
-<footer class="foot">
-  <p>Portfolio project by Diogo Ramos. Detection is rule-based and was tested only against synthetic data I generated; it is a learning project, not a production SIEM. Timestamps are shown as written in the logs (no timezone conversion).</p>
-  <p id="foot-meta" class="meta"></p>
-</footer>
+<nav id="keybar" class="keybar" aria-label="Keyboard shortcuts">
+  <button type="button" data-key="?"><b>?</b>Help</button>
+  <button type="button" data-key="/"><b>/</b>Filter</button>
+  <button type="button" data-key="j"><b>j</b>Down</button>
+  <button type="button" data-key="k"><b>k</b>Up</button>
+  <button type="button" data-key="Enter"><b>Enter</b>Open</button>
+  <button type="button" data-key="p"><b>p</b>Pause tail</button>
+  <button type="button" data-key="e"><b>e</b>Export CSV</button>
+  <button type="button" data-key="r"><b>r</b>Reset</button>
+</nav>
 
 <div id="scrim" class="scrim" hidden></div>
+
 <aside id="drawer" class="drawer" role="dialog" aria-modal="true" aria-labelledby="drawer-title" hidden tabindex="-1">
   <div class="drawer-head">
-    <div>
-      <span id="d-sev" class="sev-badge"></span>
-      <span id="d-id" class="mono muted"></span>
-      <h2 id="drawer-title"></h2>
-    </div>
-    <button type="button" id="d-close" class="btn ghost" aria-label="Close details">Close ✕</button>
+    <div class="dh-line"><span id="d-sev" class="sev-badge"></span> <span id="d-id" class="muted"></span></div>
+    <h2 id="drawer-title"></h2>
+    <button type="button" id="d-close" class="btn" aria-label="Close details">Close (Esc)</button>
   </div>
   <div id="drawer-body" class="drawer-body"></div>
 </aside>
+
+<div id="help" class="help" role="dialog" aria-modal="true" aria-labelledby="help-title" hidden tabindex="-1">
+  <div class="help-box">
+    <h2 id="help-title">Keyboard shortcuts</h2>
+    <dl class="keys">
+      <dt>j / k</dt><dd>next / previous alert (also works while the details are open)</dd>
+      <dt>g / G</dt><dd>first / last alert</dd>
+      <dt>Enter, o</dt><dd>open the selected alert</dd>
+      <dt>/</dt><dd>jump to the filter box (Enter or Esc to leave it)</dd>
+      <dt>1 2 3 4</dt><dd>toggle critical, high, medium, low</dd>
+      <dt>r</dt><dd>reset every filter</dd>
+      <dt>c</dt><dd>copy the open alert as a ticket note</dd>
+      <dt>e</dt><dd>export the filtered alerts as CSV</dd>
+      <dt>u</dt><dd>load your own alerts.json</dd>
+      <dt>p</dt><dd>pause or resume the event tail</dd>
+      <dt>?</dt><dd>show or hide this help</dd>
+      <dt>Esc</dt><dd>close whatever is open</dd>
+    </dl>
+    <p class="muted">Press Esc or ? to close.</p>
+  </div>
+</div>
 
 <script src="app.js" defer></script>
 </body>

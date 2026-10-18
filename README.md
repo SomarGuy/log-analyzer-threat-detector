@@ -1,43 +1,74 @@
 # Log Analyzer & Threat Detector
 
-A dependency-free **Python 3** tool that reads three kinds of security logs, runs rule-based detections mapped to **MITRE ATT&CK**, and produces **JSON and Markdown incident reports**, plus a static **security-ops dashboard** (dark theme, no build step) that visualises the results.
+I'm Diogo, a CS student in Toronto, and I'm teaching myself forensics and security. This is a Python tool that reads three kinds of logs, runs detection rules against them, maps what it finds to MITRE ATT&CK and writes incident reports in JSON and Markdown. There's also a dashboard that looks like a terminal ops console (more on that below). Python 3 and the standard library are all you need to run the analyzer.
 
-- **Linux `auth.log`** (SSH): failed/accepted logins, `useradd`, `usermod`, `sudo`
-- **Windows Security event exports** (CSV or JSON): 4624, 4625, 4672, 4688, 4720 (and 4732 for group changes)
-- **nginx / Apache combined access logs**: status codes, request paths, user agents
+- **Linux `auth.log`** (SSH): failed and accepted logins, `useradd`, `usermod`, `sudo`
+- **Windows Security event exports** (CSV or JSON): 4624, 4625, 4672, 4688, 4720, plus 4732 for group changes
+- **nginx / Apache combined access logs**: status codes, paths, user agents
 
-> **All sample data is synthetic.** The logs in `data/synthetic/` are produced by `loganalyzer/synthetic.py` with a fixed random seed. Hosts, users and attackers are fictional, every file is labelled `SYNTHETIC DATA`, and all public-looking IP addresses come from the reserved documentation ranges (RFC 5737: `192.0.2.0/24`, `198.51.100.0/24`, `203.0.113.0/24`). The tool has **never been run against real production logs**, and the figures below describe this synthetic data set only.
+> **Everything in the sample data is synthetic.** The logs in `data/synthetic/` come from `loganalyzer/synthetic.py` with a fixed random seed. Hosts, users and attackers are made up, every file is labelled `SYNTHETIC DATA`, and all the public-looking IP addresses are from the reserved documentation ranges (RFC 5737: `192.0.2.0/24`, `198.51.100.0/24`, `203.0.113.0/24`). I have never run this on real production logs, and every number below is about the synthetic set only.
 
 **Live demo (synthetic data):** https://log-analyzer-threat-detector.vercel.app
 
-## The problem
+## Why I built it
 
-Help desk and junior security analysts get asked "is this normal?" all the time: a burst of failed SSH logins at 2 a.m., a new local administrator nobody remembers creating, a web server full of 404s. The raw logs have the answer, but each source has its own format, and nobody wants to `grep` three machines at once. I wanted to understand what a SIEM actually does under the hood: parse differently-shaped logs into one model, apply readable detection rules, explain *why* something fired, and tell the person on call what to do next.
+Help desk and junior security people get asked "is this normal?" all the time. A burst of failed SSH logins at 2 a.m., a new local admin nobody remembers creating, a web server full of 404s. The answer is in the logs, but every source has its own format and nobody wants to `grep` three machines at once. I kept reading that a SIEM "correlates logs" without really knowing what that meant, so I built a small one to find out. I wanted to parse differently shaped logs into one model, write readable rules, explain why something fired, and say what to do next.
+
+The dashboard has a longer "Why I built this" note in my own words, including the thing that surprised me most (brute force and password spraying look the same until you try to write the rules).
 
 ## What it does
 
-- **Parses** three formats into one normalised `Event` model, and reports how many lines were parsed, ignored or malformed per file (so silent parse failures are visible).
-- **Detects** 18 patterns (table below), defined in a readable JSON rule file with thresholds, severities, ATT&CK mappings and recommended responses. Change a threshold without touching code.
-- **Correlates** alerts into incidents: alerts sharing a source IP are one story, and IP-less alerts (account creation, process execution) join the incident on the same host within 30 minutes.
-- **Reports** per alert: severity, first/last seen, event count, source IPs, accounts, hosts, ATT&CK techniques, a sampled timeline, raw evidence lines, and numbered response steps.
-- **Evaluates itself** against a ground-truth file listing every injected attack, so "did each rule fire on the attack it was written for, and did benign noise stay quiet?" is a command, not a feeling.
-- **Dashboard**: severity summary, canvas timeline, top source IPs, incident list, ATT&CK table, filterable alert list, drill-down drawer (timeline, evidence, response, "copy as ticket note"), CSV export, and "load your own `alerts.json`" (processed in the browser; nothing is uploaded).
+- **Parses** three formats into one `Event` model, and tells you how many lines were parsed, ignored or malformed per file, so a silent parse failure can't hide.
+- **Detects** 18 patterns (table below). They live in a JSON rule file with thresholds, severities, ATT&CK mappings and recommended responses, so you can change a threshold without touching code.
+- **Groups alerts into incidents.** Alerts from the same source IP are one story. Alerts with no IP (an account being created, a process running) join the incident on the same host within 30 minutes.
+- **Explains each alert** with severity, first and last seen, event count, source IPs, accounts, hosts, ATT&CK techniques, a sampled timeline, the raw evidence lines and numbered response steps.
+- **Checks itself** against a ground-truth file that lists every attack I injected, so "did each rule fire on the attack it was written for, and did the noise stay quiet?" is a command and not a feeling.
+
+## The dashboard
+
+The dashboard is a static page with no build step. I wanted it to feel like something you'd leave open in a terminal pane, so it's dark, monospace, phosphor green and amber on near-black, with a tmux-style status bar on top, an htop-style severity meter, a key bar along the bottom, and panels drawn with real box-drawing characters.
+
+What's on it: severity summary, a timeline (canvas), top source IPs, correlated incidents, the MITRE ATT&CK table, a filterable alert list, a drill-down pane (timeline, evidence, response steps, "Copy as ticket note"), CSV export, and "Load your own alerts.json". Next to the timeline there's an **event tail**: a replay of the events behind the alerts, scrolling by on its own. It is a replay of the synthetic data, not a live feed. A green line on the timeline shows where the tail is.
+
+Keyboard shortcuts (press `?` on the page for the same list):
+
+| Key | What it does |
+|---|---|
+| `j` / `k` | next / previous alert (also works while the details are open) |
+| `g` / `G` | first / last alert |
+| `Enter` or `o` | open the selected alert |
+| `/` | jump to the filter box (`Enter` or `Esc` to leave it) |
+| `1` `2` `3` `4` | toggle critical, high, medium, low |
+| `r` | reset all filters |
+| `c` | copy the open alert as a ticket note |
+| `e` | export the filtered alerts as CSV |
+| `u` | load your own `alerts.json` |
+| `p` | pause or resume the event tail |
+| `?` / `Esc` | help / close whatever is open |
+
+A few details: uploaded files are read in your browser and never sent anywhere. Log lines are always inserted as text, never as HTML, because logs contain strings an attacker chose. The Content-Security-Policy is strict (`default-src 'self'`, no inline script or style). The one font (a subset of IBM Plex Mono, licence in `dashboard/fonts/`) is served from the same site, so no third party is contacted.
 
 ## Screenshots
 
-Real screenshots of the dashboard in headless Chrome, taken by `scripts/dashboard_smoke.js` (which also asserts that the page behaves).
+These are real screenshots from headless Chrome, taken by `scripts/dashboard_smoke.js`, which also checks that the page behaves.
 
-**Overview: severity summary, timeline and top source IPs**
+**Overview: severity meters, timeline, event tail, alert list**
 ![Dashboard overview](screenshots/01-dashboard.png)
 
-**Drill-down on a critical alert (SQL injection probes with HTTP 500 responses)**
+**Drill-down on a critical alert (SQL injection probes that got HTTP 500s)**
 ![Alert drill-down](screenshots/02-alert-drilldown.png)
 
-**Timeline hover (hourly bins, log volume in grey)**
+**Timeline hover (hourly columns, log volume in dim green)**
 ![Timeline hover](screenshots/03-timeline-hover.png)
+
+**Keyboard help (`?`)**
+![Keyboard help](screenshots/06-keyboard-help.png)
 
 **On a phone-sized screen**
 <img src="screenshots/04-mobile.png" alt="Mobile dashboard" width="260">
+
+**The deployed site**
+![Live deployment](screenshots/05-live-vercel.png)
 
 ## Architecture
 
@@ -68,9 +99,9 @@ flowchart LR
     J -.-> EVAL
 ```
 
-## How to run it
+## Running it
 
-Requires Python 3.10+ and nothing else to run the tool (pytest is only needed for the tests). Tested on Python 3.13.
+You need Python 3.10 or newer. I tested on 3.13. pytest is only needed for the tests.
 
 ```bash
 git clone https://github.com/SomarGuy/log-analyzer-threat-detector.git
@@ -78,14 +109,14 @@ cd log-analyzer-threat-detector
 
 python -m venv .venv
 # Windows (PowerShell):  .venv\Scripts\Activate.ps1     Linux/macOS:  source .venv/bin/activate
-pip install -r requirements-dev.txt        # pytest + pytest-cov (tests only)
+pip install -r requirements-dev.txt        # pytest + pytest-cov, tests only
 
-python -m loganalyzer demo                 # generate synthetic logs, analyze, write reports, self-check
-python -m pytest                           # 157 tests
+python -m loganalyzer demo                 # make synthetic logs, analyze, write reports, self-check
+python -m pytest                           # 161 tests
 python -m http.server 8000 --directory dashboard    # open http://localhost:8000
 ```
 
-Analyze your own logs:
+To analyze your own logs:
 
 ```bash
 python -m loganalyzer analyze \
@@ -96,20 +127,20 @@ python -m loganalyzer analyze \
 # then open the dashboard and use "Load your own alerts.json"
 ```
 
-| Command | Purpose |
+| Command | What it does |
 |---|---|
 | `analyze` | parse logs, run rules, print a summary, write `--out-json` / `--out-md` |
-| `list-rules` / `validate-rules` | show the rules / check a rule file (non-zero exit if broken) |
+| `list-rules` / `validate-rules` | show the rules / check a rule file (non-zero exit if it's broken) |
 | `generate` | write the synthetic logs and `ground_truth.json` (`--seed N` for a different set) |
-| `demo` | generate, analyze, write `reports/` and `dashboard/data/alerts.json`, then evaluate against ground truth |
+| `demo` | generate, analyze, write `reports/` and `dashboard/data/alerts.json`, then check against ground truth |
 
-Useful `analyze` options: `--min-severity high`, `--ignore-ip <your scanner>` (repeatable), `--fail-on critical` (exit status 2 if any alert is at or above that severity, handy for cron/CI), `--synthetic` (label the report), `--no-colour`. Exit codes: `0` ok, `2` `--fail-on` tripped, `3` usage/input error.
+Handy `analyze` options: `--min-severity high`, `--ignore-ip <your scanner>` (repeatable), `--fail-on critical` (exit status 2 if any alert is at or above that severity, good for cron), `--synthetic` (label the report), `--no-colour`. Exit codes: `0` fine, `2` `--fail-on` tripped, `3` bad usage or input.
 
 If you edit a rule, `python -m loganalyzer validate-rules` catches typos in rule types, severities, thresholds, regexes and ATT&CK IDs before you run anything.
 
 ## Detection rules
 
-All 18 live in [`rules/detection_rules.json`](rules/detection_rules.json). Thresholds below are the defaults I chose; they are tuning knobs, not industry standards.
+All 18 live in [`rules/detection_rules.json`](rules/detection_rules.json). The thresholds are the defaults I picked. They are knobs to turn, not industry standards.
 
 | ID | Detects | Sources | Severity | ATT&CK | Default trigger |
 |---|---|---|---|---|---|
@@ -132,11 +163,12 @@ All 18 live in [`rules/detection_rules.json`](rules/detection_rules.json). Thres
 | `WIN-004` | Burst of recon commands (`whoami /all`, `nltest`, `net group`) | windows | medium | T1033, T1087 | ≥2 by same user/host within 1 h |
 | `WIN-005` | Shadow-copy deletion / recovery disabled | windows | critical | T1490 | ≥1 |
 
-Brute force and spraying are separated on purpose: they look the same if you only count failures, so `AUTH-001` requires several tries per account and `AUTH-002` requires many accounts with few tries each. Web payload patterns are checked after URL-decoding twice, so `%252e%252e%252f` is still caught.
+I split brute force and spraying on purpose. If you only count failed logins they look identical, so `AUTH-001` wants several tries per account and `AUTH-002` wants lots of accounts with only a few tries each. Web payloads are checked after URL-decoding twice, so `%252e%252e%252f` still gets caught.
 
-## The synthetic data set
 
-`python -m loganalyzer demo` writes about 4,600 events over a fictional Monday-Saturday week (Oct 12-17, 2026): `auth.log`, a Windows Security CSV (domain controller), a Windows Security JSON (workstation) and an nginx-style `access.log`. Background traffic is deliberately noisy: business-hours logins and typos, a monitoring service that logs in all night, Googlebot hitting 404s, an admin running `ipconfig /all`, and a ticketed `adduser`. Eleven attacks are injected on top:
+## The synthetic data
+
+`python -m loganalyzer demo` writes about 4,600 events for a made-up Monday to Saturday week (Oct 12 to 17, 2026): an `auth.log`, a Windows Security CSV from a domain controller, a Windows Security JSON from a workstation, and an nginx-style `access.log`. The background traffic is noisy on purpose: business-hours logins with typos, a monitoring service that logs in all night, Googlebot hitting 404s, an admin running `ipconfig /all`, and an `adduser` that had a ticket. I then injected eleven attacks on top:
 
 | Injected scenario | What it exercises |
 |---|---|
@@ -152,7 +184,7 @@ Brute force and spraying are separated on purpose: they look the same if you onl
 | Nikto scan | `WEB-005/006` |
 | `python-requests` scraper (45 requests) | `WEB-007` (low) |
 
-`ground_truth.json` lists the alerts each scenario *should* produce. The encoded PowerShell payload decodes to a harmless `Write-Output` line; no malicious content is included.
+`ground_truth.json` lists the alerts each scenario *should* produce. The encoded PowerShell payload decodes to a harmless `Write-Output` line. There is nothing malicious in the repo.
 
 ## Sample output
 
@@ -180,7 +212,7 @@ Evaluation against injected ground truth (synthetic data only)
   unexpected alerts        : 0
 ```
 
-Analysis of the whole synthetic set takes about 0.2 s on the machine I built it on (single-threaded, standard library only).
+The whole synthetic set takes about 0.2 s to analyse on the machine I built it on (one thread, standard library only).
 
 Markdown report excerpt (`reports/incident_report.md`):
 
@@ -203,7 +235,8 @@ Recommended response:
 ...
 ````
 
-JSON report: `reports/alerts.json` (what the dashboard loads) has `meta`, `summary` (severity counts, top IPs, ATT&CK table, hourly volume), `incidents`, `alerts` (each with `timeline`, `evidence`, `recommended_response`, `details`) and `rules`.
+The JSON report, `reports/alerts.json`, is what the dashboard loads. It has `meta`, `summary` (severity counts, top IPs, ATT&CK table, hourly volume), `incidents`, `alerts` (each with `timeline`, `evidence`, `recommended_response` and `details`) and `rules`.
+
 
 ## Project layout
 
@@ -222,50 +255,53 @@ loganalyzer/
 rules/detection_rules.json
 data/synthetic/      generated logs + ground_truth.json (labelled SYNTHETIC)
 reports/             sample alerts.json, incident_report.md, evaluation.json
-dashboard/           static site: index.html, app.js, style.css, data/alerts.json, vercel.json
+dashboard/           static site: index.html, app.js, style.css, fonts/, data/alerts.json, vercel.json
 tests/               pytest suite
-scripts/dashboard_smoke.js   optional headless-Chrome check + screenshots (needs playwright-core)
+scripts/dashboard_smoke.js   headless Chrome check + screenshots (needs playwright-core)
 ```
+
 
 ## Tests
 
 ```bash
-python -m pytest                                        # all tests
+python -m pytest                                        # everything
 python -m pytest --cov=loganalyzer --cov-report=term-missing
 ```
 
-157 tests; line coverage of the `loganalyzer` package measured at 99% (`pytest-cov`). Coverage shows the code was executed, not that every behaviour is right, so the tests are written around behaviours: each detector has a fires / does-not-fire / boundary case (for example exactly 10 vs 9 failures, 07:00 vs 19:00), parsers get malformed and unusual input, the rule validator rejects each kind of broken rule, report schemas are checked, the CLI is exercised end to end (including exit codes), the synthetic generator is checked for determinism and labelling, and the dashboard folder is checked statically (no inline scripts, no `innerHTML`, CSP present). A separate browser script, `scripts/dashboard_smoke.js`, drives the real dashboard in headless Chrome (filters, drill-down, hostile `<script>` text in an uploaded file stays inert).
+161 tests. Line coverage of the `loganalyzer` package was 99% when I measured it with `pytest-cov`. Coverage only shows the code ran, not that it's right, so I wrote the tests around behaviour. Each detector has a fires / doesn't fire / boundary case (exactly 10 failures vs 9, 07:00 vs 19:00). Parsers get malformed and strange input. The rule validator has to reject every kind of broken rule. Report schemas are checked, the CLI is run end to end including exit codes, and the synthetic generator is checked for determinism and labelling. The dashboard folder gets static checks too: no inline scripts, no `innerHTML`, CSP present, font files exist, no em-dashes in the copy.
 
-## Design notes and limitations
+`scripts/dashboard_smoke.js` drives the real dashboard in headless Chrome: the tail scrolling and pausing, j / k / g / G, Enter, `/`, `?`, number keys, every filter, the CSV download, copy as ticket note, loading a file, and a hostile `<script>` title staying inert.
 
-**What this is not.** It is a learning project, not a SIEM or an EDR. Please read the numbers above with these caveats:
+## What it can't do
 
-- **Self-graded.** The detections, the thresholds and the attacks in the synthetic data were all written by me, so "12/12 scenarios, 0 unexpected alerts" shows the rules do what I wrote them to do on data I designed. It is **not** a detection rate or false-positive rate for real environments, and I have no data on how it would behave on real logs.
-- **Rule-based and evadable.** Thresholds and regexes miss low-and-slow attacks (a few attempts per hour), distributed attacks spread over many IPs, payloads obfuscated beyond double URL-decoding, and spoofed user agents. An absent alert is not proof of safety.
-- **Timestamps are wall-clock.** Each log's time is used as written; there is no timezone normalisation between sources. `auth.log` has no year, so you pass `--year` (the parser handles a December-to-January rollover). Off-hours logic uses fixed business hours, not a per-user baseline.
-- **Windows coverage is narrow.** Only 4624/4625/4672/4688/4720/4732. `4688` needs process-command-line auditing enabled to be useful. No Kerberos events, lockouts (4740), logoff, or SID-level matching: `ACCT-002` matches the new account by name.
-- **Correlation is a heuristic.** Same IP, or same host within 30 minutes, can merge unrelated activity behind shared NAT addresses or split one attacker who changes IPs. Internal vs external is a simple RFC 1918 check; there is no geolocation or threat-intelligence lookup.
-- **Not built for scale.** It reads whole files into memory and some rules are quadratic in the number of events per IP. I have only run it on about 4,600 events.
-- **No state.** Each run is independent: no alert suppression across runs, no baselines, no ticket integration, and no automated response (it only recommends).
-- **Dashboard is a static snapshot** with no login. The hosted copy contains only the synthetic `alerts.json`. Uploaded files are parsed in your browser; log lines are inserted as text (never HTML) because logs contain attacker-controlled strings, and the Vercel config sets a strict Content-Security-Policy.
+It's a learning project, not a SIEM or an EDR. Please read the numbers above with this in mind:
+
+- **I graded my own homework.** I wrote the detections, the thresholds and the attacks in the data. "12/12 scenarios, 0 unexpected alerts" only shows the rules do what I wrote them to do on data I designed. It is not a detection rate or a false-positive rate for a real network, and I have no idea how it would behave on real logs.
+- **It's easy to get around.** Thresholds and regexes miss slow attacks (a few tries an hour), attacks spread over many IPs, payloads hidden beyond double URL-decoding, and spoofed user agents. No alert doesn't mean you're safe.
+- **Timestamps are whatever the log says.** There's no timezone conversion between sources. `auth.log` has no year, so you pass `--year` (December to January rollover is handled). Off-hours means fixed business hours, not a baseline for each user.
+- **Windows coverage is small.** Only 4624, 4625, 4672, 4688, 4720 and 4732. `4688` needs command-line auditing turned on to be useful. There's no Kerberos, no lockouts (4740), no logoff, no SID matching. `ACCT-002` matches the new account by name.
+- **Correlation is a guess.** Same IP, or same host within 30 minutes, can lump together unrelated things behind a shared NAT address, or split one attacker who changes IPs. Internal vs external is a plain RFC 1918 check. There's no geolocation or threat intel.
+- **It won't scale.** It reads whole files into memory and some rules are quadratic in the number of events per IP. I've only run it on about 4,600 events.
+- **No memory between runs.** No suppression, no baselines, no ticket integration, and it never responds on its own. It only recommends.
+- **The dashboard is a snapshot with no login.** The hosted copy only has the synthetic `alerts.json`.
 
 ## Deploying the dashboard
 
-`dashboard/` is a self-contained static site (no build step). On Vercel, either import the repository (the root `vercel.json` sets `outputDirectory` to `dashboard`) or deploy the `dashboard/` folder directly. Any static host works. Opening `index.html` straight from disk won't load the data because browsers block `fetch()` on `file://`; serve it with `python -m http.server` or use the "Load your own alerts.json" button.
+`dashboard/` is a plain static site. On Vercel you can import the repo (the root `vercel.json` points `outputDirectory` at `dashboard`) or deploy the `dashboard/` folder by itself. Any static host works. If you open `index.html` straight from disk the data won't load, because browsers block `fetch()` on `file://`. Serve it with `python -m http.server` or use "Load your own alerts.json".
 
 ## What I learned
 
-- **Counting failures is not enough.** Brute force and password spraying need different shapes of rule (many tries on few accounts vs few tries on many). My first spray rule also fired on the first minute of a loud brute force, because early on that looked like "one or two tries per account". The fix was to judge the whole attack episode instead of the ramp-up. Tests that reproduce a mistake like this are worth more than tests that confirm the happy path.
-- **Bursts of events must become one alert.** Overlapping sliding windows are merged into episodes, otherwise one 40-minute attack becomes dozens of duplicate alerts; that is the difference between a tool and noise.
-- **Logs are messy.** Syslog timestamps have no year, `sshd` logs both an "Invalid user" line and a "Failed password" line for the same attempt (count once), Windows exports name their columns differently depending on the tool, and web payloads arrive URL-encoded, sometimes twice.
-- **Writing for the person on call.** An alert needs the evidence, a timeline and the next action, and the recommended steps (preserve logs, verify with the user, do not delete the evidence) matter as much as the detection. That is the same habit as writing good ticket notes.
-- **Mapping to ATT&CK is a discipline.** Choosing a technique ID forces you to say precisely what you actually observed, and the coverage table makes it obvious what the rules do not cover.
-- **The dashboard is an attack surface too.** The evidence panel displays strings an attacker chose (`<script>`, SQL). Using `textContent`, a strict CSP and a test that loads a hostile title is cheap, and it is the sort of thing a security tool should get right.
+- **Counting failures isn't enough.** Brute force and password spraying need different rules: many tries on a few accounts versus a few tries on many. My first spray rule also fired in the first minute of a loud brute force, because early on every account had only one or two tries. The fix was to judge the whole attack instead of the ramp-up. A test that reproduces a mistake like that is worth more than ten tests that confirm the happy path.
+- **A burst of events has to turn into one alert.** Overlapping sliding windows get merged into episodes. Without that, one 40-minute attack becomes dozens of duplicate alerts, and that's the difference between a tool and noise.
+- **Logs are messy.** Syslog timestamps have no year. `sshd` writes both an "Invalid user" line and a "Failed password" line for one attempt, so you have to count it once. Windows exports name their columns differently depending on the tool. Web payloads show up URL-encoded, sometimes twice.
+- **Write for the person on call.** An alert needs the evidence, a timeline and the next step. "Keep the logs, check with the user, don't delete anything" matters as much as the detection. It's the same habit as writing a good ticket note.
+- **Mapping to ATT&CK makes you be precise.** Picking a technique ID forces you to say exactly what you saw, and the coverage table makes it obvious what the rules don't cover.
+- **The dashboard is an attack surface too.** The evidence panel shows strings an attacker chose (`<script>`, SQL). `textContent`, a strict CSP and a test that loads a hostile title are cheap, and a security tool ought to get that right.
 
 ## Tech
 
-Python 3 (standard library: `argparse`, `re`, `csv`, `json`, `ipaddress`, `dataclasses`), pytest, pytest-cov, HTML/CSS/vanilla JavaScript (canvas, no dependencies), Mermaid (README diagram), Playwright-core (optional screenshots), Git, Vercel (static hosting). Topics: SSH and Windows authentication logs, MITRE ATT&CK, log parsing, detection engineering, incident reporting.
+Python 3 (standard library: `argparse`, `re`, `csv`, `json`, `ipaddress`, `dataclasses`), pytest, pytest-cov, plain HTML, CSS and JavaScript (canvas, no libraries), IBM Plex Mono subset for the font, Mermaid for the diagram above, playwright-core for the screenshots, Git, Vercel for hosting.
 
 ## Licence
 
-MIT, see [LICENSE](LICENSE).
+MIT, see [LICENSE](LICENSE). The font files in `dashboard/fonts/` are under the SIL Open Font License (see `dashboard/fonts/LICENSE-font.txt`).
