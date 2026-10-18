@@ -73,8 +73,8 @@ flowchart LR
 Requires Python 3.10+ and nothing else to run the tool (pytest is only needed for the tests). Tested on Python 3.13.
 
 ```bash
-git clone <your-repo-url>
-cd log-analyzer
+git clone https://github.com/SomarGuy/log-analyzer-threat-detector.git
+cd log-analyzer-threat-detector
 
 python -m venv .venv
 # Windows (PowerShell):  .venv\Scripts\Activate.ps1     Linux/macOS:  source .venv/bin/activate
