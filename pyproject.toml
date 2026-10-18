@@ -1,0 +1,21 @@
+[project]
+name = "loganalyzer"
+version = "1.0.0"
+description = "Log analyzer and threat detector: parses auth.log, Windows Security exports and web access logs; rule-based detections mapped to MITRE ATT&CK."
+requires-python = ">=3.10"
+dependencies = []          # standard library only
+
+[project.scripts]
+loganalyzer = "loganalyzer.cli:main"
+
+[tool.setuptools]
+packages = ["loganalyzer", "loganalyzer.parsers"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q"
+
+[tool.coverage.run]
+source = ["loganalyzer"]
+omit = ["loganalyzer/__main__.py"]

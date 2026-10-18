@@ -1,0 +1,608 @@
+{
+  "_comment": "Detection rules for loganalyzer. Edit thresholds here; no code change needed. Each rule has: id, name, type (detector), severity (low|medium|high|critical), sources, params (thresholds/patterns), mitre mapping, recommended response.",
+  "version": 1,
+  "rules": [
+    {
+      "id": "AUTH-001",
+      "name": "Brute-force login attempts from one source",
+      "type": "login_failure_burst",
+      "severity": "high",
+      "sources": [
+        "auth",
+        "windows"
+      ],
+      "params": {
+        "threshold": 10,
+        "window_seconds": 300,
+        "min_avg_attempts_per_user": 3
+      },
+      "description": "One source IP produced many failed logins in a short window with several attempts per account, the classic pattern of automated password guessing (SSH, RDP/SMB on Windows). Bursts that touch many accounts only once or twice are reported as password spraying (AUTH-002) instead.",
+      "mitre": [
+        {
+          "id": "T1110.001",
+          "name": "Brute Force: Password Guessing",
+          "tactic": "Credential Access"
+        }
+      ],
+      "response": [
+        "Block or rate-limit the source IP at the firewall / fail2ban / Windows Firewall.",
+        "Check whether any login from this IP succeeded (see AUTH-003) and review the targeted accounts.",
+        "Confirm SSH password authentication is disabled where possible (keys only) and that account lockout is configured on Windows.",
+        "Add the IP to the incident ticket and check threat-intel / abuse reports before closing."
+      ]
+    },
+    {
+      "id": "AUTH-002",
+      "name": "Password spraying: many accounts, few tries each",
+      "type": "password_spray",
+      "severity": "high",
+      "sources": [
+        "auth",
+        "windows"
+      ],
+      "params": {
+        "min_distinct_users": 8,
+        "window_seconds": 1800,
+        "max_attempts_per_user": 3
+      },
+      "description": "One source IP tried a few passwords against many different usernames. Spraying stays under per-account lockout thresholds, so it is detected by counting distinct accounts instead of failures per account.",
+      "mitre": [
+        {
+          "id": "T1110.003",
+          "name": "Brute Force: Password Spraying",
+          "tactic": "Credential Access"
+        }
+      ],
+      "response": [
+        "Block the source IP and notify the identity/security owner.",
+        "Force a password reset and review sign-in history for every account that was targeted, starting with any that later succeeded.",
+        "Check for weak or reused passwords against a banned-password list; enable MFA for remote access.",
+        "Look for the same IP in web and VPN logs."
+      ]
+    },
+    {
+      "id": "AUTH-003",
+      "name": "Successful login after many failures",
+      "type": "success_after_failures",
+      "severity": "critical",
+      "sources": [
+        "auth",
+        "windows"
+      ],
+      "params": {
+        "threshold": 8,
+        "window_seconds": 1800
+      },
+      "description": "A source IP that had just generated many failed logins then logged in successfully. This is the strongest sign that a brute-force or spraying attempt actually worked.",
+      "mitre": [
+        {
+          "id": "T1110",
+          "name": "Brute Force",
+          "tactic": "Credential Access"
+        },
+        {
+          "id": "T1078",
+          "name": "Valid Accounts",
+          "tactic": "Initial Access"
+        }
+      ],
+      "response": [
+        "Treat the account as compromised: disable it or force a password reset and revoke active sessions/keys immediately.",
+        "Isolate the host if possible and preserve logs (copy auth.log / Security.evtx) before making changes.",
+        "Review everything the account did after the successful login: new users, sudo/admin use, new processes, outbound connections.",
+        "Escalate to the security lead / incident owner."
+      ]
+    },
+    {
+      "id": "ACCT-001",
+      "name": "New local account created",
+      "type": "account_created",
+      "severity": "medium",
+      "sources": [
+        "auth",
+        "windows"
+      ],
+      "params": {},
+      "description": "A new user account was created (Windows event 4720 or Linux useradd). Legitimate during onboarding, but attackers create accounts to keep access.",
+      "mitre": [
+        {
+          "id": "T1136.001",
+          "name": "Create Account: Local Account",
+          "tactic": "Persistence"
+        }
+      ],
+      "response": [
+        "Verify there is an approved ticket/change request for the account and who created it.",
+        "If unexpected, disable the account and review who/what created it.",
+        "Check group memberships of the new account (see ACCT-002)."
+      ]
+    },
+    {
+      "id": "ACCT-002",
+      "name": "New account given administrative rights",
+      "type": "account_created_privileged",
+      "severity": "critical",
+      "sources": [
+        "auth",
+        "windows"
+      ],
+      "params": {
+        "window_seconds": 3600
+      },
+      "description": "A newly created account was added to an administrative group (Windows 4732 Administrators, Linux sudo/wheel) or used special privileges (4672) shortly after creation, a typical persistence step after gaining access.",
+      "mitre": [
+        {
+          "id": "T1136.001",
+          "name": "Create Account: Local Account",
+          "tactic": "Persistence"
+        },
+        {
+          "id": "T1098",
+          "name": "Account Manipulation",
+          "tactic": "Persistence"
+        }
+      ],
+      "response": [
+        "Disable the new account and remove it from privileged groups right away.",
+        "Identify the session that created it (creator account, source IP, time) and treat that account as compromised.",
+        "Search the host for scheduled tasks, services, SSH keys and startup items added around the same time.",
+        "Escalate as a security incident; do not delete the account until evidence is captured."
+      ]
+    },
+    {
+      "id": "AUTH-004",
+      "name": "Successful login outside business hours",
+      "type": "off_hours_login",
+      "severity": "medium",
+      "sources": [
+        "auth",
+        "windows"
+      ],
+      "params": {
+        "business_start_hour": 7,
+        "business_end_hour": 19,
+        "workdays": [
+          0,
+          1,
+          2,
+          3,
+          4
+        ],
+        "logon_types": [
+          "2",
+          "3",
+          "7",
+          "10",
+          "11",
+          "ssh"
+        ],
+        "exclude_users": [
+          "svc_monitor"
+        ],
+        "privileged_severity": "high"
+      },
+      "description": "A successful interactive or remote login happened outside configured business hours (07:00-19:00 Mon-Fri). Severity rises when special privileges were assigned to the same user (event 4672). Alone this is a weak signal: confirm with the user before escalating.",
+      "mitre": [
+        {
+          "id": "T1078",
+          "name": "Valid Accounts",
+          "tactic": "Initial Access"
+        }
+      ],
+      "response": [
+        "Contact the user (by a known phone number or chat, not by replying to anything suspicious) to confirm the login was theirs.",
+        "If unconfirmed, reset the password, revoke sessions and review the activity during that session.",
+        "Check whether the source IP/location is normal for this user (VPN range, usual country)."
+      ]
+    },
+    {
+      "id": "WEB-001",
+      "name": "HTTP 404 flood (content/directory scanning)",
+      "type": "http_status_burst",
+      "severity": "medium",
+      "sources": [
+        "web"
+      ],
+      "params": {
+        "threshold": 40,
+        "window_seconds": 120,
+        "statuses": [
+          404
+        ]
+      },
+      "description": "One client generated a large number of 404 responses in a short time, typical of directory brute-forcing and automated vulnerability scanners.",
+      "mitre": [
+        {
+          "id": "T1595.003",
+          "name": "Active Scanning: Wordlist Scanning",
+          "tactic": "Reconnaissance"
+        },
+        {
+          "id": "T1595.002",
+          "name": "Active Scanning: Vulnerability Scanning",
+          "tactic": "Reconnaissance"
+        }
+      ],
+      "response": [
+        "Rate-limit or block the client at the WAF / reverse proxy.",
+        "Check whether any request from this IP returned 200 for a sensitive path (admin pages, backups, .env, .git).",
+        "Make sure nothing sensitive is exposed on the web root; keep the scan results for the ticket."
+      ]
+    },
+    {
+      "id": "WEB-002",
+      "name": "SQL injection probes",
+      "type": "http_pattern",
+      "severity": "high",
+      "sources": [
+        "web"
+      ],
+      "params": {
+        "min_matches": 2,
+        "escalate_on_status": [
+          500
+        ],
+        "escalated_severity": "critical",
+        "patterns": [
+          "(?i)union[\\s+]+(all[\\s+]+)?select",
+          "(?i)\\bor\\b[\\s+]+['\\\"]?\\d+['\\\"]?[\\s+]*=[\\s+]*['\\\"]?\\d+",
+          "(?i)'[\\s+]*(--|#|;)",
+          "(?i)\\bsleep\\s*\\(\\s*\\d",
+          "(?i)benchmark\\s*\\(",
+          "(?i)information_schema",
+          "(?i)\\bdrop[\\s+]+table",
+          "(?i)waitfor[\\s+]+delay",
+          "(?i)'[\\s+]*or[\\s+]*'",
+          "(?i)\\band\\b[\\s+]+\\d+[\\s+]*=[\\s+]*\\d+"
+        ]
+      },
+      "description": "Requests contain SQL injection payloads (UNION SELECT, boolean/time-based tests, information_schema). Severity is raised to critical if any such request produced an HTTP 500, which can mean a payload reached the database layer and caused an error.",
+      "mitre": [
+        {
+          "id": "T1190",
+          "name": "Exploit Public-Facing Application",
+          "tactic": "Initial Access"
+        }
+      ],
+      "response": [
+        "Block the source IP at the WAF and review application/database logs for the same time window.",
+        "For requests that returned 500, hand to the developers to check whether the endpoint uses parameterised queries and what the application error log says.",
+        "Check database logs for unusual queries or large result sets; rotate credentials if data exposure is suspected."
+      ]
+    },
+    {
+      "id": "WEB-003",
+      "name": "Cross-site scripting (XSS) probes",
+      "type": "http_pattern",
+      "severity": "medium",
+      "sources": [
+        "web"
+      ],
+      "params": {
+        "min_matches": 2,
+        "patterns": [
+          "(?i)<\\s*script",
+          "(?i)javascript:",
+          "(?i)\\bon(error|load|mouseover|focus)\\s*=",
+          "(?i)<\\s*(img|svg|iframe)[^>]*",
+          "(?i)alert\\s*\\(",
+          "(?i)document\\.cookie"
+        ]
+      },
+      "description": "Requests contain script injection payloads (<script>, onerror=, javascript:). These are usually automated tests for reflected XSS.",
+      "mitre": [
+        {
+          "id": "T1190",
+          "name": "Exploit Public-Facing Application",
+          "tactic": "Initial Access"
+        }
+      ],
+      "response": [
+        "Block or rate-limit the source IP.",
+        "Ask the web team to confirm the targeted parameters are output-encoded and a Content-Security-Policy is set.",
+        "Search logs for the same payloads from other IPs."
+      ]
+    },
+    {
+      "id": "WEB-004",
+      "name": "Path traversal / local file inclusion probes",
+      "type": "http_pattern",
+      "severity": "high",
+      "sources": [
+        "web"
+      ],
+      "params": {
+        "min_matches": 2,
+        "escalate_on_status": [
+          200
+        ],
+        "escalated_severity": "critical",
+        "patterns": [
+          "(?i)\\.\\./",
+          "(?i)\\.\\.\\\\",
+          "(?i)/etc/(passwd|shadow)",
+          "(?i)boot\\.ini",
+          "(?i)win\\.ini",
+          "(?i)\\\\windows\\\\system32"
+        ]
+      },
+      "description": "Requests try to escape the web root using ../ sequences or request OS files such as /etc/passwd. A 200 response to such a request is escalated to critical because the file may have been served.",
+      "mitre": [
+        {
+          "id": "T1190",
+          "name": "Exploit Public-Facing Application",
+          "tactic": "Initial Access"
+        }
+      ],
+      "response": [
+        "Block the source IP at the WAF.",
+        "For any 200 response, check what was returned (response size in the log) and inspect the application for unsafe file path handling; treat as a data exposure until disproved.",
+        "Update the web server / framework and confirm the web process runs with least privilege."
+      ]
+    },
+    {
+      "id": "WEB-005",
+      "name": "Probing for sensitive files and admin panels",
+      "type": "http_pattern",
+      "severity": "medium",
+      "sources": [
+        "web"
+      ],
+      "params": {
+        "min_matches": 3,
+        "distinct_paths": true,
+        "patterns": [
+          "(?i)/\\.env\\b",
+          "(?i)/\\.git/",
+          "(?i)/wp-login\\.php",
+          "(?i)/wp-admin",
+          "(?i)/xmlrpc\\.php",
+          "(?i)/phpmyadmin",
+          "(?i)/\\.aws/",
+          "(?i)/id_rsa",
+          "(?i)/server-status",
+          "(?i)/actuator",
+          "(?i)/backup\\.(zip|sql|tar)",
+          "(?i)/cgi-bin/"
+        ]
+      },
+      "description": "A client requested several well-known sensitive or admin paths (.env, .git, phpMyAdmin, wp-login). Commonly seen from opportunistic scanners looking for exposed secrets.",
+      "mitre": [
+        {
+          "id": "T1595.003",
+          "name": "Active Scanning: Wordlist Scanning",
+          "tactic": "Reconnaissance"
+        },
+        {
+          "id": "T1190",
+          "name": "Exploit Public-Facing Application",
+          "tactic": "Initial Access"
+        }
+      ],
+      "response": [
+        "Confirm none of these paths exist or are reachable from the internet.",
+        "Block or rate-limit the client.",
+        "Rotate any secret that could have lived in an exposed file."
+      ]
+    },
+    {
+      "id": "WEB-006",
+      "name": "Known scanner / attack-tool user agent",
+      "type": "http_user_agent",
+      "severity": "medium",
+      "sources": [
+        "web"
+      ],
+      "params": {
+        "min_requests": 1,
+        "patterns": [
+          "(?i)(sqlmap|nikto|nmap|masscan|zgrab|gobuster|dirbuster|\\bdirb\\b|wpscan|acunetix|nessus|openvas|havij|feroxbuster|nuclei|ffuf|wfuzz)"
+        ]
+      },
+      "description": "The User-Agent header names a well-known scanning or exploitation tool. User agents are trivially spoofed, so absence of this alert proves nothing, but presence is a reliable sign of unauthorised scanning.",
+      "mitre": [
+        {
+          "id": "T1595.002",
+          "name": "Active Scanning: Vulnerability Scanning",
+          "tactic": "Reconnaissance"
+        }
+      ],
+      "response": [
+        "Block the client and check what else it requested (see WEB-001..WEB-005 alerts for the same IP).",
+        "If this is your own authorised scan, add it to the allow-list and record the approval."
+      ]
+    },
+    {
+      "id": "WEB-007",
+      "name": "Scripted or empty user agent with high request volume",
+      "type": "http_user_agent",
+      "severity": "low",
+      "sources": [
+        "web"
+      ],
+      "params": {
+        "min_requests": 20,
+        "patterns": [
+          "(?i)^(python-requests|python-urllib|curl|wget|go-http-client|libwww-perl|java)\\b",
+          "^$"
+        ]
+      },
+      "description": "A script-style or blank user agent made many requests. Often benign (monitoring, scrapers, integrations) but worth a look when combined with other alerts.",
+      "mitre": [
+        {
+          "id": "T1595",
+          "name": "Active Scanning",
+          "tactic": "Reconnaissance"
+        }
+      ],
+      "response": [
+        "Check what the client requested; if it only fetches public pages, consider rate-limiting.",
+        "Correlate with other alerts from the same IP before taking action."
+      ]
+    },
+    {
+      "id": "WIN-001",
+      "name": "Encoded PowerShell command",
+      "type": "process_match",
+      "severity": "high",
+      "sources": [
+        "windows"
+      ],
+      "params": {
+        "min_matches": 1,
+        "patterns": [
+          "(?i)powershell(\\.exe)?.*\\s-(e|ec|enc|encodedcommand)\\s+[A-Za-z0-9+/=]{20,}"
+        ]
+      },
+      "description": "A process was started with PowerShell -EncodedCommand and a long Base64 blob (event 4688 with command-line auditing). Used to hide the real command from casual inspection.",
+      "mitre": [
+        {
+          "id": "T1059.001",
+          "name": "Command and Scripting Interpreter: PowerShell",
+          "tactic": "Execution"
+        },
+        {
+          "id": "T1027",
+          "name": "Obfuscated Files or Information",
+          "tactic": "Defense Evasion"
+        }
+      ],
+      "response": [
+        "Decode the Base64 payload (UTF-16LE) on an isolated machine to see what it does.",
+        "Identify the parent process and user; isolate the host if the payload is malicious.",
+        "Check for follow-on activity: downloads, new accounts, scheduled tasks."
+      ]
+    },
+    {
+      "id": "WIN-002",
+      "name": "Command-line file download (living off the land)",
+      "type": "process_match",
+      "severity": "high",
+      "sources": [
+        "windows"
+      ],
+      "params": {
+        "min_matches": 1,
+        "patterns": [
+          "(?i)certutil.*-urlcache",
+          "(?i)bitsadmin.*/transfer",
+          "(?i)\\bDownloadString\\b",
+          "(?i)\\bInvoke-WebRequest\\b|\\biwr\\b\\s+http"
+        ]
+      },
+      "description": "Built-in tools (certutil, bitsadmin, PowerShell web cmdlets) were used to download a file, a common way to fetch malware without dropping an obvious downloader.",
+      "mitre": [
+        {
+          "id": "T1105",
+          "name": "Ingress Tool Transfer",
+          "tactic": "Command and Control"
+        }
+      ],
+      "response": [
+        "Find the URL and the file written; check reputation and quarantine the file.",
+        "Isolate the host if the download is not expected software deployment.",
+        "Review the parent process and the logged-on user for compromise."
+      ]
+    },
+    {
+      "id": "WIN-003",
+      "name": "Account added via net.exe",
+      "type": "process_match",
+      "severity": "high",
+      "sources": [
+        "windows"
+      ],
+      "params": {
+        "min_matches": 1,
+        "patterns": [
+          "(?i)\\bnet1?(\\.exe)?\\s+user\\s+\\S+\\s+\\S*\\s*/add",
+          "(?i)\\bnet1?(\\.exe)?\\s+localgroup\\s+administrators\\s+\\S+\\s+/add"
+        ]
+      },
+      "description": "net.exe was used to create a user or add one to the local Administrators group from the command line.",
+      "mitre": [
+        {
+          "id": "T1136.001",
+          "name": "Create Account: Local Account",
+          "tactic": "Persistence"
+        },
+        {
+          "id": "T1098",
+          "name": "Account Manipulation",
+          "tactic": "Persistence"
+        }
+      ],
+      "response": [
+        "Verify with the change record and the user who ran it; disable the new account if unexpected.",
+        "Review the account's logins and group membership, and the session that created it."
+      ]
+    },
+    {
+      "id": "WIN-004",
+      "name": "Post-compromise reconnaissance commands",
+      "type": "process_match",
+      "severity": "medium",
+      "sources": [
+        "windows"
+      ],
+      "params": {
+        "min_matches": 2,
+        "patterns": [
+          "(?i)\\bwhoami(\\.exe)?\\s+/(all|priv|groups)",
+          "(?i)\\bnet1?(\\.exe)?\\s+(group|localgroup)\\b",
+          "(?i)\\bnltest\\b",
+          "(?i)\\bnet1?(\\.exe)?\\s+user\\s*$",
+          "(?i)\\bsysteminfo\\b",
+          "(?i)\\bipconfig\\s+/all"
+        ]
+      },
+      "description": "Several discovery commands (whoami /all, net group, nltest, systeminfo) ran on the same host by the same user. Individually normal for admins; as a burst they look like an attacker orienting themselves.",
+      "mitre": [
+        {
+          "id": "T1033",
+          "name": "System Owner/User Discovery",
+          "tactic": "Discovery"
+        },
+        {
+          "id": "T1087",
+          "name": "Account Discovery",
+          "tactic": "Discovery"
+        }
+      ],
+      "response": [
+        "Ask the user/admin whether they ran these commands; if not, treat the session as hostile.",
+        "Check what happened immediately before and after on the host (logons, new processes)."
+      ]
+    },
+    {
+      "id": "WIN-005",
+      "name": "Shadow copy / recovery inhibition",
+      "type": "process_match",
+      "severity": "critical",
+      "sources": [
+        "windows"
+      ],
+      "params": {
+        "min_matches": 1,
+        "patterns": [
+          "(?i)vssadmin(\\.exe)?\\s+delete\\s+shadows",
+          "(?i)wmic.*shadowcopy.*delete",
+          "(?i)bcdedit.*recoveryenabled\\s+no"
+        ]
+      },
+      "description": "Commands that delete volume shadow copies or disable Windows recovery, a hallmark of ransomware preparation.",
+      "mitre": [
+        {
+          "id": "T1490",
+          "name": "Inhibit System Recovery",
+          "tactic": "Impact"
+        }
+      ],
+      "response": [
+        "Isolate the host from the network immediately.",
+        "Escalate to the incident lead; do not reboot until memory/disk evidence is captured.",
+        "Verify the state of backups and check other hosts for the same command."
+      ]
+    }
+  ]
+}

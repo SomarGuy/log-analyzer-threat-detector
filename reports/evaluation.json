@@ -1,0 +1,334 @@
+{
+  "scenarios_total": 12,
+  "scenarios_fully_detected": 12,
+  "expected_alerts": 30,
+  "expected_alerts_detected": 30,
+  "unexpected_alerts": [],
+  "scenarios": [
+    {
+      "scenario": "benign_admin_adduser",
+      "description": "Ticketed user creation by an admin; a medium alert is expected, nothing more.",
+      "results": [
+        {
+          "rule": "ACCT-001",
+          "user": "contractor1",
+          "host": "synth-web-01",
+          "detected": true,
+          "alert_ids": [
+            "ALR-007"
+          ]
+        }
+      ],
+      "fully_detected": true
+    },
+    {
+      "scenario": "ssh_bruteforce",
+      "description": "SSH dictionary brute force (276 attempts) against common accounts, never succeeds.",
+      "results": [
+        {
+          "rule": "AUTH-001",
+          "ip": "203.0.113.45",
+          "detected": true,
+          "alert_ids": [
+            "ALR-003"
+          ]
+        }
+      ],
+      "fully_detected": true
+    },
+    {
+      "scenario": "ssh_bruteforce_success_persistence",
+      "description": "78 failures, then a successful password login for 'deploy' at 03:41, then a new sudo-capable account 'sysupdate'.",
+      "results": [
+        {
+          "rule": "AUTH-001",
+          "ip": "198.51.100.77",
+          "detected": true,
+          "alert_ids": [
+            "ALR-009"
+          ]
+        },
+        {
+          "rule": "AUTH-003",
+          "ip": "198.51.100.77",
+          "detected": true,
+          "alert_ids": [
+            "ALR-008"
+          ]
+        },
+        {
+          "rule": "AUTH-004",
+          "ip": "198.51.100.77",
+          "detected": true,
+          "alert_ids": [
+            "ALR-010"
+          ]
+        },
+        {
+          "rule": "ACCT-001",
+          "user": "sysupdate",
+          "detected": true,
+          "alert_ids": [
+            "ALR-012"
+          ]
+        },
+        {
+          "rule": "ACCT-002",
+          "user": "sysupdate",
+          "detected": true,
+          "alert_ids": [
+            "ALR-011"
+          ]
+        }
+      ],
+      "fully_detected": true
+    },
+    {
+      "scenario": "ssh_password_spray",
+      "description": "24 different usernames, 1-2 attempts each, over ~12 minutes.",
+      "results": [
+        {
+          "rule": "AUTH-002",
+          "ip": "192.0.2.99",
+          "detected": true,
+          "alert_ids": [
+            "ALR-022"
+          ]
+        }
+      ],
+      "fully_detected": true
+    },
+    {
+      "scenario": "windows_spray_to_domain_admin_account",
+      "description": "34 accounts sprayed on the DC, 'svc_backup' succeeds, PowerShell/recon/download/net user activity, new admin 'helpdesk_tmp', RDP login at 22:15.",
+      "results": [
+        {
+          "rule": "AUTH-002",
+          "ip": "198.51.100.23",
+          "detected": true,
+          "alert_ids": [
+            "ALR-013"
+          ]
+        },
+        {
+          "rule": "AUTH-003",
+          "ip": "198.51.100.23",
+          "detected": true,
+          "alert_ids": [
+            "ALR-014"
+          ]
+        },
+        {
+          "rule": "AUTH-004",
+          "ip": "198.51.100.23",
+          "detected": true,
+          "alert_ids": [
+            "ALR-021"
+          ]
+        },
+        {
+          "rule": "WIN-001",
+          "host": "SYNTH-DC01",
+          "detected": true,
+          "alert_ids": [
+            "ALR-015"
+          ]
+        },
+        {
+          "rule": "WIN-002",
+          "host": "SYNTH-DC01",
+          "detected": true,
+          "alert_ids": [
+            "ALR-017"
+          ]
+        },
+        {
+          "rule": "WIN-003",
+          "host": "SYNTH-DC01",
+          "detected": true,
+          "alert_ids": [
+            "ALR-018"
+          ]
+        },
+        {
+          "rule": "WIN-004",
+          "host": "SYNTH-DC01",
+          "detected": true,
+          "alert_ids": [
+            "ALR-016"
+          ]
+        },
+        {
+          "rule": "ACCT-001",
+          "user": "helpdesk_tmp",
+          "detected": true,
+          "alert_ids": [
+            "ALR-020"
+          ]
+        },
+        {
+          "rule": "ACCT-002",
+          "user": "helpdesk_tmp",
+          "detected": true,
+          "alert_ids": [
+            "ALR-019"
+          ]
+        }
+      ],
+      "fully_detected": true
+    },
+    {
+      "scenario": "off_hours_admin_login",
+      "description": "Admin 'tkim' logs on at 23:40 Thursday with special privileges.",
+      "results": [
+        {
+          "rule": "AUTH-004",
+          "user": "tkim",
+          "detected": true,
+          "alert_ids": [
+            "ALR-024"
+          ]
+        }
+      ],
+      "fully_detected": true
+    },
+    {
+      "scenario": "weekend_login_lolbin_download",
+      "description": "Saturday 03:12 VPN login for 'mchen', then certutil downloads a file 7 minutes later.",
+      "results": [
+        {
+          "rule": "AUTH-004",
+          "user": "mchen",
+          "detected": true,
+          "alert_ids": [
+            "ALR-029"
+          ]
+        },
+        {
+          "rule": "WIN-002",
+          "host": "SYNTH-WS12",
+          "detected": true,
+          "alert_ids": [
+            "ALR-030"
+          ]
+        }
+      ],
+      "fully_detected": true
+    },
+    {
+      "scenario": "gobuster_dir_scan_same_attacker",
+      "description": "330 requests (mostly 404) from the same IP that brute-forced SSH; gobuster user agent; probes .env/.git/phpmyadmin.",
+      "results": [
+        {
+          "rule": "WEB-001",
+          "ip": "203.0.113.45",
+          "detected": true,
+          "alert_ids": [
+            "ALR-004"
+          ]
+        },
+        {
+          "rule": "WEB-005",
+          "ip": "203.0.113.45",
+          "detected": true,
+          "alert_ids": [
+            "ALR-006"
+          ]
+        },
+        {
+          "rule": "WEB-006",
+          "ip": "203.0.113.45",
+          "detected": true,
+          "alert_ids": [
+            "ALR-005"
+          ]
+        }
+      ],
+      "fully_detected": true
+    },
+    {
+      "scenario": "sqli_and_xss_probing",
+      "description": "sqlmap (110 requests, some HTTP 500) followed by 16 reflected-XSS probes from one IP.",
+      "results": [
+        {
+          "rule": "WEB-002",
+          "ip": "198.51.100.150",
+          "detected": true,
+          "alert_ids": [
+            "ALR-025"
+          ]
+        },
+        {
+          "rule": "WEB-003",
+          "ip": "198.51.100.150",
+          "detected": true,
+          "alert_ids": [
+            "ALR-027"
+          ]
+        },
+        {
+          "rule": "WEB-006",
+          "ip": "198.51.100.150",
+          "detected": true,
+          "alert_ids": [
+            "ALR-026"
+          ]
+        }
+      ],
+      "fully_detected": true
+    },
+    {
+      "scenario": "path_traversal",
+      "description": "Six traversal attempts; the first returns HTTP 200 with a plausible /etc/passwd-sized body.",
+      "results": [
+        {
+          "rule": "WEB-004",
+          "ip": "198.51.100.151",
+          "detected": true,
+          "alert_ids": [
+            "ALR-028"
+          ]
+        }
+      ],
+      "fully_detected": true
+    },
+    {
+      "scenario": "nikto_scan",
+      "description": "25 requests with a Nikto user agent for well-known sensitive paths.",
+      "results": [
+        {
+          "rule": "WEB-006",
+          "ip": "192.0.2.150",
+          "detected": true,
+          "alert_ids": [
+            "ALR-001"
+          ]
+        },
+        {
+          "rule": "WEB-005",
+          "ip": "192.0.2.150",
+          "detected": true,
+          "alert_ids": [
+            "ALR-002"
+          ]
+        }
+      ],
+      "fully_detected": true
+    },
+    {
+      "scenario": "python_scraper",
+      "description": "45 product-page requests with a python-requests user agent.",
+      "results": [
+        {
+          "rule": "WEB-007",
+          "ip": "203.0.113.9",
+          "detected": true,
+          "alert_ids": [
+            "ALR-023"
+          ]
+        }
+      ],
+      "fully_detected": true
+    }
+  ]
+}
