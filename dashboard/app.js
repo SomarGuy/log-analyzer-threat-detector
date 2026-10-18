@@ -183,16 +183,27 @@
     $("f-search").value = "";
   }
 
+  /* The lists below the alert table filter it, so bring the table back into view after a pick. */
+  function showAlerts() {
+    var box = $("sec-alerts"), r = box.getBoundingClientRect();
+    if (r.top < 30 || r.top > window.innerHeight * 0.6) {
+      var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      box.scrollIntoView({ block: "start", behavior: reduce ? "auto" : "smooth" });
+    }
+  }
+  function openFold(id) { var el = $(id); if (el && el.tagName === "DETAILS") el.open = true; }
+
   function buildIps() {
     var ol = $("top-ips"); clear(ol);
     var rows = data.summary.top_attackers.slice(0, 7);
+    $("ip-count").textContent = String(rows.length);
     var max = Math.max.apply(null, rows.map(function (r) { return r.events; }).concat([1]));
     if (!rows.length) ol.appendChild(h("li", { class: "muted", text: "No alerts with a source IP." }));
     rows.forEach(function (r) {
       var bar = h("span", { class: "ip-bar" }, meterBar(r.events / max, 14));
       bar.style.setProperty("--c", SEV_COLOR[r.max_severity]);
       var btn = h("button", { type: "button", class: "ip-row", "data-ip": r.ip, "aria-pressed": "false", title: "Filter alerts to " + r.ip,
-        onclick: function () { state.ip = state.ip === r.ip ? "" : r.ip; renderAll(); } }, [
+        onclick: function () { state.ip = state.ip === r.ip ? "" : r.ip; renderAll(); showAlerts(); } }, [
         h("div", { class: "ip-top" }, [
           h("span", null, [h("span", { class: "ip-addr", text: r.ip }), h("span", { class: "tag", text: r.internal ? "internal" : "external" })]),
           sevBadge(r.max_severity)]),
@@ -203,10 +214,11 @@
 
   function buildIncidents() {
     var ul = $("incidents"); clear(ul);
+    $("inc-count").textContent = String(data.incidents.length);
     if (!data.incidents.length) ul.appendChild(h("li", { class: "muted", text: "No correlated incidents." }));
     data.incidents.forEach(function (inc) {
       var btn = h("button", { type: "button", class: "inc", "data-inc": inc.id, "aria-pressed": "false",
-        onclick: function () { state.incident = state.incident === inc.id ? "" : inc.id; renderAll(); } }, [
+        onclick: function () { state.incident = state.incident === inc.id ? "" : inc.id; renderAll(); showAlerts(); } }, [
         h("div", { class: "t" }, [sevBadge(inc.severity), h("span", { class: "mono", text: inc.id }), h("span", { text: (inc.source_ips[0] || inc.hosts[0] || "") })]),
         h("div", { class: "s", text: inc.alert_ids.length + (inc.alert_ids.length === 1 ? " alert | " : " alerts | ") + fmtShort(inc.first_seen) + " to " + fmtShort(inc.last_seen) + " | " + inc.tactics.join(" > "), title: inc.tactics.join(" > ") })]);
       btn.style.setProperty("--c", SEV_COLOR[inc.severity]);
@@ -217,7 +229,8 @@
   function techUrl(id) { return "https://attack.mitre.org/techniques/" + id.replace(".", "/") + "/"; }
   function buildMitre() {
     var tb = $("mitre-table").tBodies[0]; clear(tb);
-    function pick(m) { state.technique = state.technique === m.id ? "" : m.id; renderAll(); }
+    $("mitre-count").textContent = String(data.summary.mitre.length);
+    function pick(m) { state.technique = state.technique === m.id ? "" : m.id; renderAll(); showAlerts(); }
     data.summary.mitre.forEach(function (m) {
       var tr = h("tr", { "data-tech": m.id, tabindex: "0", onclick: function (e) { if (e.target.tagName !== "A") pick(m); },
         onkeydown: function (e) { if (e.key === "Enter" && e.target === tr) pick(m); } }, [
@@ -772,7 +785,7 @@
       b.addEventListener("click", function () { act(b.getAttribute("data-key"), { target: b }); });
     });
     each(document.querySelectorAll(".sb-windows .win"), function (a) {
-      a.addEventListener("click", function () { each(document.querySelectorAll(".sb-windows .win"), function (w) { w.classList.toggle("on", w === a); }); });
+      a.addEventListener("click", function () { each(document.querySelectorAll(".sb-windows .win"), function (w) { w.classList.toggle("on", w === a); }); openFold((a.getAttribute("href") || "").slice(1)); });
     });
     document.addEventListener("keydown", function (e) {
       if (e.ctrlKey || e.metaKey || e.altKey) return;

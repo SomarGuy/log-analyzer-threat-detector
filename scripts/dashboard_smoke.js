@@ -53,10 +53,18 @@ const outDir = process.argv[3] || "screenshots";
   assert(/replay/.test(await page.locator("#tail-state").textContent()), "p resumes the tail");
   await page.mouse.move(5, 5);
   await page.screenshot({ path: outDir + "/01-dashboard.png" });
-  await page.setViewportSize({ width: 1440, height: 1800 });
+  assert.strictEqual(await page.locator("details.fold[open]").count(), 0, "secondary panels start folded away");
+  await page.setViewportSize({ width: 1440, height: 1100 });
   await page.waitForTimeout(400);
-  await page.screenshot({ path: outDir + "/01-dashboard-full.png" });
+  await page.screenshot({ path: outDir + "/01-dashboard-full.png", fullPage: true });
   await page.setViewportSize({ width: 1440, height: 900 });
+  // open the folds one by one with the mouse, as a visitor would; screenshot the tail and the incident list
+  await page.click("#sec-incidents > summary");
+  assert(await page.locator("#incidents li").first().isVisible(), "Incidents unfolds");
+  await page.locator("#sec-incidents").scrollIntoViewIfNeeded();
+  await page.screenshot({ path: outDir + "/10-incidents-open.png" });
+  for (const id of ["sec-ips", "sec-mitre", "sec-tail", "sec-why"]) await page.click("#" + id + " > summary");
+  await page.evaluate(() => { document.activeElement.blur(); window.scrollTo(0, 0); });
 
   // keyboard: j / k move the highlighted alert, Enter opens it, j/k inside the drawer flips alerts
   const curId = () => page.locator("#alert-table tbody tr.cur").getAttribute("data-id");
@@ -116,6 +124,8 @@ const outDir = process.argv[3] || "screenshots";
 
   // CSV export honours the filter
   await page.fill("#f-search", "SQL injection");
+  await page.click("#tools > summary");
+  assert(await page.locator("#f-export").isVisible(), "the tools expander shows export and the extra filters");
   const [dl] = await Promise.all([page.waitForEvent("download"), page.click("#f-export")]);
   const csv = fs.readFileSync(await dl.path(), "utf8").trim().split("\n");
   assert.strictEqual(csv.length, (await rows()) + 1, "CSV has header plus the filtered rows");
@@ -196,7 +206,7 @@ const outDir = process.argv[3] || "screenshots";
     assert(await g.locator("#guide").isVisible(), "guide opens from the top bar");
     assert.strictEqual(await g.evaluate(() => document.activeElement.id), "guide-close", "focus moves into the guide");
     assert((await g.evaluate(() => document.documentElement.scrollWidth)) <= vp.width + 2, "no horizontal overflow with the guide open");
-    assert.strictEqual(await g.locator("#guide .g-steps li").count(), 6, "six steps");
+    assert.strictEqual(await g.locator("#guide .g-steps li").count(), 5, "five steps");
     for (const w of ["What this is", "Try this in 60 seconds", "Words you will see", "What this shows about my skills"]) assert((await g.locator("#guide").textContent()).includes(w), w);
     // focus stays inside the dialog
     for (let i = 0; i < 6; i++) await g.keyboard.press("Tab");
@@ -231,21 +241,26 @@ const outDir = process.argv[3] || "screenshots";
     // step 4: reset, INC-02, sort by first seen
     await g.click("#f-reset");
     assert.strictEqual(await grows(), 30, "step 4: reset");
+    assert(await g.locator('.inc[data-inc="INC-02"]').isHidden(), "step 4: Incidents starts folded");
+    await g.click("#sec-incidents > summary");
     await g.locator('.inc[data-inc="INC-02"]').click();
     assert.strictEqual(await grows(), 9, "step 4: nine alerts in INC-02");
     await g.locator("button.sort[data-sort=time]").click();
     const order = await g.locator("#alert-table tbody tr td:nth-child(5)").allInnerTexts();
     assert(/Password spraying/.test(order[0]) && /Encoded PowerShell/.test(order[2]) && /helpdesk_tmp/.test(order.slice(5).join(" ")), "step 4: time order tells the story");
-    // step 5: event tail and pause button
     await g.click("#f-reset");
-    assert(await g.locator("#tail-toggle").isVisible() && (await g.locator("#tail-toggle").textContent()) === "pause", "step 5: pause button");
-    await g.click("#tail-toggle");
-    assert(/paused/.test(await g.locator("#tail-state").textContent()), "step 5: pause works");
-    await g.click("#tail-toggle");
-    // step 6: T1110.003 row
+    await g.click("#sec-incidents > summary");
+    // step 5: open MITRE ATT&CK, click T1110.003
+    await g.click("#sec-mitre > summary");
     await g.locator('#mitre-table tr[data-tech="T1110.003"]').click();
-    assert.strictEqual(await grows(), 2, "step 6: two password spraying alerts");
+    assert.strictEqual(await grows(), 2, "step 5: two password spraying alerts");
     await g.click("#f-reset");
+    // the Event tail fold has its own pause button (the guide's glossary points at it)
+    await g.click("#sec-tail > summary");
+    assert(await g.locator("#tail-toggle").isVisible() && (await g.locator("#tail-toggle").textContent()) === "pause", "tail pause button");
+    await g.click("#tail-toggle");
+    assert(/paused/.test(await g.locator("#tail-state").textContent()), "tail pause works");
+    await g.click("#tail-toggle");
     // keyboard-only: the callout's open button works too
     await g.evaluate(() => localStorage.clear());
     await g.reload({ waitUntil: "networkidle" });

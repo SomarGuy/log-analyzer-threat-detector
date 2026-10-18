@@ -124,7 +124,7 @@ def test_how_to_use_guide_has_the_required_parts():
     assert 'role="dialog"' in guide and 'aria-modal="true"' in guide and 'aria-labelledby="guide-title"' in guide
     for heading in ("What this is", "Try this in 60 seconds", "Words you will see", "What this shows about my skills"):
         assert heading in guide, heading
-    assert guide.count("<li>") == 6                                           # six numbered steps
+    assert guide.count("<li>") == 5                                           # five numbered steps
     for term in ("Brute force", "Password spraying", "SQL injection", "MITRE ATT&amp;CK", "Incident", "Severity", "Event tail"):
         assert "<dt>" + term in guide, term
 
@@ -182,3 +182,28 @@ def test_readme_has_how_to_use_the_demo_section_matching_the_guide():
     section = readme[readme.index("## How to use the demo"):]
     for needle in ("SQL injection probes", "INC-03", "INC-02", "T1110.003", "Show only this incident"):
         assert needle in section, needle
+
+
+def test_page_is_simplified_main_list_first_secondary_panels_folded_away():
+    """Above the fold: summary, timeline and the alert list. Everything else sits in closed folds."""
+    html = (DASH / "index.html").read_text()
+    folds = re.findall(r'<details id="(sec-[a-z]+)" class="box fold"', html)
+    assert folds == ["sec-incidents", "sec-ips", "sec-mitre", "sec-tail", "sec-why"]
+    assert not re.search(r'<details id="sec-[a-z]+" class="box fold" open', html)      # closed until you ask
+    main_boxes = html[html.index('<div class="row r1">'):html.index('<div class="more"')]
+    assert main_boxes.count('class="box') == 2 and 'id="timeline"' in main_boxes and 'id="alert-table"' in main_boxes
+    assert 'class="box start"' not in html and "┌─" not in html[html.index('id="start-here"'):html.index('id="error"')]
+    tools = html[html.index('id="tools"'):html.index('id="file-input"')]
+    for needle in ('id="f-source"', 'id="f-tactic"', 'id="f-rule"', 'id="f-export"'):
+        assert needle in tools                                                          # secondary controls live in one expander
+    assert 'id="sb-counts" class="sb-counts" aria-hidden="true" hidden' in html
+
+
+def test_folds_have_counts_and_the_nav_opens_them():
+    js = (DASH / "app.js").read_text()
+    for needle in ('$("inc-count")', '$("ip-count")', '$("mitre-count")', "function openFold", "function showAlerts"):
+        assert needle in js, needle
+    html = (DASH / "index.html").read_text()
+    for target in re.findall(r'<a href="#(sec-[a-z]+)" class="win', html):
+        if target != "sec-alerts":
+            assert 'id="%s"' % target in html and ('<details id="%s"' % target in html or target == "sec-overview"), target

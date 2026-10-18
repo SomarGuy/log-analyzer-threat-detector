@@ -22,8 +22,7 @@
   </nav>
   <button type="button" id="guide-open" class="win-guide" aria-haspopup="dialog" aria-controls="guide" title="A 60-second walkthrough for first-time visitors (h)">? <span class="gl-long">how to use this</span><span class="gl-short">how to use</span></button>
   <h1 class="sb-title">Log Analyzer <span class="amp">&amp;</span> Threat Detector <span class="by">by Diogo Ramos</span></h1>
-  <span id="sb-counts" class="sb-counts" aria-hidden="true"></span>
-  <span id="replay-clock" class="sb-clock" aria-hidden="true">replay --:--:--</span>
+  <span id="sb-counts" class="sb-counts" aria-hidden="true" hidden></span>
 </header>
 
 <div id="banner" class="banner synthetic" role="note">
@@ -32,13 +31,8 @@
 </div>
 
 <main id="main">
-  <section id="start-here" class="box start" hidden aria-labelledby="start-title">
-    <h2 class="bt"><span class="c" aria-hidden="true">┌─</span><span id="start-title" class="t">Start here</span><span class="fill" aria-hidden="true"></span><span class="c" aria-hidden="true">─┐</span></h2>
-    <div class="bb">
-      <p>First time here? This is a security log dashboard. Everything on it is made-up sample data, so you can click anything. The short guide takes about a minute and tells you what to click and what to look at.</p>
-      <p class="btn-row"><button type="button" id="start-open" class="btn btn-go">Open the 60-second guide</button> <button type="button" id="start-dismiss" class="btn">Dismiss</button> <span class="muted">You can bring the guide back any time with the "?" button in the top bar.</span></p>
-    </div>
-    <div class="bf" aria-hidden="true"><span>└</span><span class="fill"></span><span>┘</span></div>
+  <section id="start-here" class="start" hidden aria-labelledby="start-title">
+    <p><span id="start-title" class="start-t">New here?</span> It is a security log dashboard full of made-up data, so click anything. <button type="button" id="start-open" class="btn btn-go">Open the guide</button> <button type="button" id="start-dismiss" class="btn quiet">Dismiss</button></p>
   </section>
 
   <section id="error" class="error" hidden aria-live="assertive"></section>
@@ -53,19 +47,11 @@
     <section class="box" aria-labelledby="timeline-title">
       <h2 class="bt"><span class="c" aria-hidden="true">┌─</span><span id="timeline-title" class="t">Timeline</span><span class="fill" aria-hidden="true"></span><span id="timeline-legend" class="legend" aria-hidden="true"></span><span class="c" aria-hidden="true">─┐</span></h2>
       <div class="bb">
-        <p class="hint">Alerts per hour, coloured by severity. The dim area is raw log volume. Click a column to filter the list to that hour.</p>
+        <p class="hint">Alerts per hour. Click a column to filter the list to that hour.</p>
         <div class="chart-wrap">
           <canvas id="timeline" role="img" aria-label="Stacked bar chart of alerts over time by severity"></canvas>
           <div id="tooltip" class="tooltip" role="status" hidden></div>
         </div>
-      </div>
-      <div class="bf" aria-hidden="true"><span>└</span><span class="fill"></span><span>┘</span></div>
-    </section>
-
-    <section class="box tail-box" aria-labelledby="tail-title">
-      <h2 class="bt"><span class="c" aria-hidden="true">┌─</span><span id="tail-title" class="t">Event tail</span><span id="tail-state" class="tag-state" aria-live="off">replay</span><span class="fill" aria-hidden="true"></span><button type="button" id="tail-toggle" class="mini" title="Pause or resume the replay (p)">pause</button><span class="c" aria-hidden="true">─┐</span></h2>
-      <div class="bb tail-bb">
-        <div id="tail" class="tail" role="log" aria-live="off" aria-label="Replay of the events behind each alert, oldest first"></div>
       </div>
       <div class="bf" aria-hidden="true"><span>└</span><span class="fill"></span><span>┘</span></div>
     </section>
@@ -79,12 +65,17 @@
           <label class="prompt" for="f-search"><span aria-hidden="true">filter&gt;</span><span class="sr">Search alerts</span></label>
           <input id="f-search" type="text" placeholder="title, IP, user, host, rule, technique  ( / )" autocomplete="off" spellcheck="false">
           <div id="f-sev" class="chips" role="group" aria-label="Severity filter"></div>
-          <select id="f-source" aria-label="Log source"><option value="">all log sources</option></select>
-          <select id="f-tactic" aria-label="MITRE tactic"><option value="">all tactics</option></select>
-          <select id="f-rule" aria-label="Detection rule"><option value="">all rules</option></select>
           <button type="button" id="f-reset" class="btn" title="Clear every filter (r)">Reset</button>
-          <button type="button" id="f-export" class="btn" title="Download the filtered alerts as CSV (e)">Export CSV</button>
-          <label class="btn" for="file-input" title="Open an alerts.json you made with the analyzer (u)">Load your own alerts.json</label>
+          <details class="tools" id="tools">
+            <summary>more filters, export</summary>
+            <div class="tools-row">
+              <select id="f-source" aria-label="Log source"><option value="">all log sources</option></select>
+              <select id="f-tactic" aria-label="MITRE tactic"><option value="">all tactics</option></select>
+              <select id="f-rule" aria-label="Detection rule"><option value="">all rules</option></select>
+              <button type="button" id="f-export" class="btn" title="Download the filtered alerts as CSV (e)">Export CSV</button>
+              <label class="btn" for="file-input" title="Open an alerts.json you made with the analyzer (u)">Load your own alerts.json</label>
+            </div>
+          </details>
           <input id="file-input" type="file" accept="application/json,.json" hidden>
         </form>
         <div id="active-filters" class="active-filters" aria-live="polite"></div>
@@ -104,31 +95,27 @@
       </div>
       <div class="bf" aria-hidden="true"><span>└</span><span class="fill"></span><span>┘</span></div>
     </section>
+  </div>
 
-    <div class="stack">
-      <section class="box" aria-labelledby="ips-title">
-        <h2 class="bt"><span class="c" aria-hidden="true">┌─</span><span id="ips-title" class="t">Top IPs</span><span class="fill" aria-hidden="true"></span><span class="c" aria-hidden="true">─┐</span></h2>
-        <div class="bb">
-          <p class="hint">Worst severity first, then alert count. Click one to filter.</p>
-          <ol id="top-ips" class="ip-list"></ol>
-        </div>
-        <div class="bf" aria-hidden="true"><span>└</span><span class="fill"></span><span>┘</span></div>
-      </section>
-
-      <section id="sec-incidents" class="box" aria-labelledby="inc-title">
-        <h2 class="bt"><span class="c" aria-hidden="true">┌─</span><span id="inc-title" class="t">Incidents</span><span class="fill" aria-hidden="true"></span><span class="c" aria-hidden="true">─┐</span></h2>
-        <div class="bb">
+  <div class="more" id="more">
+    <details id="sec-incidents" class="box fold">
+      <summary class="bt"><span class="c" aria-hidden="true">┌─</span><span class="t">Incidents</span><span id="inc-count" class="tag-state"></span><span class="fill" aria-hidden="true"></span><span class="tog" aria-hidden="true"></span><span class="c" aria-hidden="true">─┐</span></summary>
+      <div class="bb">
           <p class="hint">Alerts that share a source IP, or a host and a time window, grouped into one story.</p>
           <ul id="incidents" class="incident-list"></ul>
         </div>
-        <div class="bf" aria-hidden="true"><span>└</span><span class="fill"></span><span>┘</span></div>
-      </section>
-    </div>
-  </div>
-
-  <div class="row r3">
-    <section id="sec-mitre" class="box" aria-labelledby="mitre-title">
-      <h2 class="bt"><span class="c" aria-hidden="true">┌─</span><span id="mitre-title" class="t">MITRE ATT&amp;CK</span><span class="fill" aria-hidden="true"></span><span class="c" aria-hidden="true">─┐</span></h2>
+      <div class="bf" aria-hidden="true"><span>└</span><span class="fill"></span><span>┘</span></div>
+    </details>
+    <details id="sec-ips" class="box fold">
+      <summary class="bt"><span class="c" aria-hidden="true">┌─</span><span class="t">Top IPs</span><span id="ip-count" class="tag-state"></span><span class="fill" aria-hidden="true"></span><span class="tog" aria-hidden="true"></span><span class="c" aria-hidden="true">─┐</span></summary>
+      <div class="bb">
+          <p class="hint">Worst severity first, then alert count. Click one to filter.</p>
+          <ol id="top-ips" class="ip-list"></ol>
+        </div>
+      <div class="bf" aria-hidden="true"><span>└</span><span class="fill"></span><span>┘</span></div>
+    </details>
+    <details id="sec-mitre" class="box fold">
+      <summary class="bt"><span class="c" aria-hidden="true">┌─</span><span class="t">MITRE ATT&amp;CK</span><span id="mitre-count" class="tag-state"></span><span class="fill" aria-hidden="true"></span><span class="tog" aria-hidden="true"></span><span class="c" aria-hidden="true">─┐</span></summary>
       <div class="bb">
         <p class="hint">Techniques seen in this data set, in kill-chain order. Click a row to filter the alerts.</p>
         <div class="table-scroll">
@@ -148,18 +135,27 @@
         </details>
       </div>
       <div class="bf" aria-hidden="true"><span>└</span><span class="fill"></span><span>┘</span></div>
-    </section>
-
-    <section id="sec-why" class="box why" aria-labelledby="why-title">
-      <h2 class="bt"><span class="c" aria-hidden="true">┌─</span><span id="why-title" class="t">Why I built this</span><span class="fill" aria-hidden="true"></span><span class="c" aria-hidden="true">─┐</span></h2>
+    </details>
+    <details id="sec-tail" class="box fold">
+      <summary class="bt"><span class="c" aria-hidden="true">┌─</span><span class="t">Event tail</span><span id="tail-state" class="tag-state" aria-live="off">replay</span><span class="fill" aria-hidden="true"></span><span class="tog" aria-hidden="true"></span><span class="c" aria-hidden="true">─┐</span></summary>
+      <div class="bb tail-bb">
+        <p class="hint">A replay of the events behind the alerts, oldest first. It is not a live feed. <span id="replay-clock" class="clock" aria-hidden="true">replay --:--:--</span> <button type="button" id="tail-toggle" class="mini" title="Pause or resume the replay (p)">pause</button></p>
+        <div class="tail-wrap">
+          <div id="tail" class="tail" role="log" aria-live="off" aria-label="Replay of the events behind each alert, oldest first"></div>
+        </div>
+      </div>
+      <div class="bf" aria-hidden="true"><span>└</span><span class="fill"></span><span>┘</span></div>
+    </details>
+    <details id="sec-why" class="box fold">
+      <summary class="bt"><span class="c" aria-hidden="true">┌─</span><span class="t">Why I built this</span><span class="fill" aria-hidden="true"></span><span class="tog" aria-hidden="true"></span><span class="c" aria-hidden="true">─┐</span></summary>
       <div class="bb note">
         <p>I'm a CS student in Toronto and I'm teaching myself forensics and security on the side. I kept reading that a SIEM "correlates logs" and I never really understood what that meant, so I wrote a small one to find out where it hurts.</p>
         <p>The thing that surprised me most was brute force versus password spraying. I figured they'd look the same, since both are a pile of failed logins. They aren't. Brute force is one IP hammering a few accounts. Spraying is one IP trying a couple of passwords on lots of accounts. My first spray rule also fired during the first minute of a loud brute force, because early on every account had only been tried once or twice. I only noticed because I wrote a test that replays the attack. The fix was to judge the whole attack instead of the ramp-up.</p>
         <p>What I'd improve: every log here is fake and written by me, so 12 out of 12 only proves the rules do what I told them to. I want to try it on logs from a throwaway VM I control. It also needs a per-user idea of normal instead of fixed office hours, proper timezone handling, and a way to catch slow attacks, because a few tries an hour walks right past it.</p>
-        <p>The tail above is a replay of the synthetic events, not a live feed. I just like how it feels to watch.</p>
+        <p>The event tail is a replay of the synthetic events, not a live feed. I just like how it feels to watch.</p>
       </div>
       <div class="bf" aria-hidden="true"><span>└</span><span class="fill"></span><span>┘</span></div>
-    </section>
+    </details>
   </div>
 
   <p class="foot">Portfolio project by Diogo Ramos. Detection is rule-based and I only tested it on synthetic data I generated, so treat it as a learning project and not a real SIEM. Timestamps are shown as written in the logs, with no timezone conversion.</p>
@@ -228,9 +224,8 @@
           <li><b>Click the "critical" bar</b> in the four coloured bars at the top. The alert list drops from 30 alerts to the 6 that would need someone right now. Notice "6 of 30 shown" above the list. Click the bar again to switch the filter off.</li>
           <li><b>Click the row "SQL injection probes"</b> (rule WEB-002). A panel opens (on the right on a desktop, full screen on a phone). Notice the plain-English "What happened", the raw log lines under "Evidence", and the numbered "Recommended response". That is what an on-call person needs.</li>
           <li><b>In that panel, find "Part of INC-03" and click "Show only this incident".</b> Three alerts remain, all from one IP address: a scanning tool, then SQL injection, then script injection. Separate alerts have become one story.</li>
-          <li><b>Click "Reset", then click INC-02 in the Incidents box.</b> Nine alerts show up. Click the "First seen" column title to read them in time order: password spraying, a login that works, encoded PowerShell, a new admin account called helpdesk_tmp. That is one break-in from start to finish.</li>
-          <li><b>Look at the Event tail</b> near the timeline. It replays the log lines behind the alerts. Click "pause" to stop it. It is a replay of the sample data, not a live feed.</li>
-          <li><b>Scroll down to the MITRE ATT&amp;CK table and click the row for T1110.003.</b> The list filters to the two password spraying alerts. Press ? any time for the keyboard shortcuts (j and k move between alerts, Enter opens one).</li>
+          <li><b>Click "Reset", then open "Incidents" under the alert list and click INC-02.</b> Nine alerts show up. Click the "First seen" column title to read them in time order: password spraying, a login that works, encoded PowerShell, a new admin account called helpdesk_tmp. That is one break-in from start to finish.</li>
+          <li><b>Open "MITRE ATT&amp;CK", a little further down the list, and click the row for T1110.003.</b> The list filters to the two password spraying alerts. Press ? any time for the keyboard shortcuts (j and k move between alerts, Enter opens one). "Event tail" and "Top IPs" are in the same list if you want a look.</li>
         </ol>
       </section>
       <section aria-labelledby="g-gloss">
@@ -249,12 +244,12 @@
           <dt>Path traversal</dt><dd>Using ../ in a web address to reach files that should be off limits.</dd>
           <dt>Living off the land</dt><dd>An attacker using tools already on the machine (like certutil or net.exe) so there is nothing new to detect.</dd>
           <dt>MITRE ATT&amp;CK</dt><dd>A public catalogue of attacker techniques, each with an ID like T1110. I tag every alert with the ones that apply.</dd>
-          <dt>Event tail</dt><dd>The scrolling log at the top right. Named after the <code>tail</code> command that follows a log file.</dd>
+          <dt>Event tail</dt><dd>A scrolling replay of the log lines behind the alerts, under the alert list. Named after the <code>tail</code> command that follows a log file.</dd>
         </dl>
       </section>
       <section aria-labelledby="g-skills">
         <h3 id="g-skills">What this shows about my skills</h3>
-        <p>I can read messy logs from different systems and work out what matters. I can turn that into a clear next step, like a good ticket note, and I test my work (167 tests plus a real-browser check). I'm aiming at help desk, IT support and data analyst roles, and this is how I practise noticing patterns in data and explaining them to the next person.</p>
+        <p>I can read messy logs from different systems and work out what matters. I can turn that into a clear next step, like a good ticket note, and I test my work (169 tests plus a real-browser check). I'm aiming at help desk, IT support and data analyst roles, and this is how I practise noticing patterns in data and explaining them to the next person.</p>
       </section>
       <p class="g-foot"><button type="button" id="guide-keys" class="btn">Keyboard shortcuts</button> <span class="muted">Press Esc to close this guide.</span></p>
     </div>

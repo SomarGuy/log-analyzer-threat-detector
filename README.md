@@ -12,14 +12,13 @@ I'm Diogo, a CS student in Toronto, and I'm teaching myself forensics and securi
 
 ## How to use the demo
 
-The live site has a **"how to use this"** button in the top bar (or press `h`) and a small "Start here" box the first time you visit. Both open the same guide. If you only have a minute:
+The live site has a **"how to use this"** button in the top bar (or press `h`) and a one-line "New here?" note the first time you visit. Both open the same guide. If you only have a minute:
 
 1. Click the **critical** bar in the four coloured bars at the top. The list drops from 30 alerts to the 6 that need someone right now. Click the bar again to clear it.
 2. Click the row **SQL injection probes** (`WEB-002`). A panel opens with a plain-English "What happened", the raw log lines under "Evidence" and numbered "Recommended response" steps.
 3. In that panel, find **Part of INC-03** and click **Show only this incident**. Three alerts from one IP, in order: a scanning tool, SQL injection, then script injection. Separate alerts have become one story.
-4. Click **Reset**, then click **INC-02** in the Incidents box. Click the "First seen" column title to read the nine alerts in time order: password spraying, a login that works, encoded PowerShell, a new admin account called `helpdesk_tmp`.
-5. Watch the **Event tail** and click **pause**. It is a replay of the sample data, not a live feed.
-6. Scroll to the MITRE ATT&CK table and click the **T1110.003** row to see just the password spraying alerts. Press `?` for the keyboard shortcuts.
+4. Click **Reset**, open **Incidents** under the alert list and click **INC-02**. Click the "First seen" column title to read the nine alerts in time order: password spraying, a login that works, encoded PowerShell, a new admin account called `helpdesk_tmp`.
+5. Open **MITRE ATT&CK** a little further down and click the **T1110.003** row to see just the password spraying alerts. Press `?` for the keyboard shortcuts.
 
 The guide also has a short glossary (brute force, password spraying, SQL injection, MITRE ATT&CK and so on) and a note on what the project says about my skills. A browser test in `scripts/dashboard_smoke.js` follows these exact steps, so the guide and the page can't drift apart.
 
@@ -43,7 +42,7 @@ The dashboard has a longer "Why I built this" note in my own words, including th
 
 The dashboard is a static page with no build step. I wanted it to feel like something you'd leave open in a terminal pane, so it's dark, monospace, phosphor green and amber on near-black, with a tmux-style status bar on top, an htop-style severity meter, a key bar along the bottom, and panels drawn with real box-drawing characters.
 
-What's on it: severity summary, a timeline (canvas), top source IPs, correlated incidents, the MITRE ATT&CK table, a filterable alert list, a drill-down pane (timeline, evidence, response steps, "Copy as ticket note"), CSV export, and "Load your own alerts.json". Next to the timeline there's an **event tail**: a replay of the events behind the alerts, scrolling by on its own. It is a replay of the synthetic data, not a live feed. A green line on the timeline shows where the tail is.
+I kept the first screen quiet on purpose: the severity bars, a timeline, and the alert list, which is the thing you actually work through. Everything else is one click away in a short list under the alerts: **Incidents**, **Top IPs**, **MITRE ATT&CK** (with the 18 detection rules inside it), the **Event tail** and **Why I built this**. The extra filters, CSV export and "Load your own alerts.json" sit behind a single "more filters, export" line above the table. The drill-down pane has the timeline, evidence, response steps and "Copy as ticket note". The event tail is a replay of the events behind the alerts, not a live feed.
 
 Keyboard shortcuts (press `?` on the page for the same list):
 
@@ -68,11 +67,14 @@ A few details: uploaded files are read in your browser and never sent anywhere. 
 
 These are real screenshots from headless Chrome, taken by `scripts/dashboard_smoke.js`, which also checks that the page behaves.
 
-**Overview: severity meters, timeline, event tail, alert list**
+**Overview: severity meters, timeline, alert list (everything else is folded away below)**
 ![Dashboard overview](screenshots/01-dashboard.png)
 
 **Drill-down on a critical alert (SQL injection probes that got HTTP 500s)**
 ![Alert drill-down](screenshots/02-alert-drilldown.png)
+
+**Incidents unfolded**
+![Incidents open](screenshots/10-incidents-open.png)
 
 **Timeline hover (hourly columns, log volume in dim green)**
 ![Timeline hover](screenshots/03-timeline-hover.png)
@@ -128,7 +130,7 @@ python -m venv .venv
 pip install -r requirements-dev.txt        # pytest + pytest-cov, tests only
 
 python -m loganalyzer demo                 # make synthetic logs, analyze, write reports, self-check
-python -m pytest                           # 167 tests
+python -m pytest                           # 169 tests
 python -m http.server 8000 --directory dashboard    # open http://localhost:8000
 ```
 
@@ -284,7 +286,7 @@ python -m pytest                                        # everything
 python -m pytest --cov=loganalyzer --cov-report=term-missing
 ```
 
-167 tests. Line coverage of the `loganalyzer` package was 99% when I measured it with `pytest-cov`. Coverage only shows the code ran, not that it's right, so I wrote the tests around behaviour. Each detector has a fires / doesn't fire / boundary case (exactly 10 failures vs 9, 07:00 vs 19:00). Parsers get malformed and strange input. The rule validator has to reject every kind of broken rule. Report schemas are checked, the CLI is run end to end including exit codes, and the synthetic generator is checked for determinism and labelling. The dashboard folder gets static checks too: no inline scripts, no `innerHTML`, CSP present, font files exist, no em-dashes in the copy.
+169 tests. Line coverage of the `loganalyzer` package was 99% when I measured it with `pytest-cov`. Coverage only shows the code ran, not that it's right, so I wrote the tests around behaviour. Each detector has a fires / doesn't fire / boundary case (exactly 10 failures vs 9, 07:00 vs 19:00). Parsers get malformed and strange input. The rule validator has to reject every kind of broken rule. Report schemas are checked, the CLI is run end to end including exit codes, and the synthetic generator is checked for determinism and labelling. The dashboard folder gets static checks too: no inline scripts, no `innerHTML`, CSP present, font files exist, no em-dashes in the copy.
 
 `scripts/dashboard_smoke.js` drives the real dashboard in headless Chrome: the tail scrolling and pausing, j / k / g / G, Enter, `/`, `?`, number keys, every filter, the CSV download, copy as ticket note, loading a file, and a hostile `<script>` title staying inert.
 
