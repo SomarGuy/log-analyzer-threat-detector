@@ -227,7 +227,7 @@ const outDir = process.argv[3] || "screenshots";
     assert.strictEqual(await grows(), 3, "step 3: three alerts in INC-03");
     const t3 = await g.locator("#alert-table tbody").innerText();
     assert(t3.includes("scanner") && t3.includes("SQL injection") && t3.includes("Cross-site scripting"), "step 3: scanner, SQLi, XSS");
-    assert.strictEqual(new Set(await g.locator("#alert-table tbody tr td:nth-child(6)").allInnerTexts()).size, 1, "step 3: all from one IP");
+    if (vp.width > 760) assert.strictEqual(new Set(await g.locator("#alert-table tbody tr td:nth-child(6)").allInnerTexts()).size, 1, "step 3: all from one IP (the column is hidden on phones)");
     // step 4: reset, INC-02, sort by first seen
     await g.click("#f-reset");
     assert.strictEqual(await grows(), 30, "step 4: reset");
